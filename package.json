@@ -1,0 +1,23 @@
+{
+  "name": "tradingapp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Știri relevante despre companii listate la bursă",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node --test test/*.test.js",
+    "test:browser": "playwright test"
+  },
+  "dependencies": {
+    "fast-xml-parser": "5.12.0",
+    "undici": "7.30.2"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.65.0"
+  }
+}
