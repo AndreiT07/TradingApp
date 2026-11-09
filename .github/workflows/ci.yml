@@ -20,3 +20,74 @@ jobs:
         with:
           name: browser-results
           path: test-results/
+
+  deploy:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    concurrency:
+      group: hetzner-production
+      cancel-in-progress: false
+    env:
+      SSH_HOST: ${{ secrets.SSH_HOST }}
+      SSH_USER: ${{ secrets.SSH_USER }}
+      SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
+      APP_PORT: ${{ vars.APP_PORT || '80' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - name: Build deployment image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ vars.DEPLOY_PLATFORM || 'linux/amd64' }}
+          load: true
+          tags: tradingapp:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Smoke test production container
+        env:
+          APP_IMAGE: tradingapp:${{ github.sha }}
+          APP_PORT: '18080'
+        run: |
+          set -euo pipefail
+          trap 'docker compose -p ci -f deploy/compose.yml logs --tail=50; docker compose -p ci -f deploy/compose.yml down' EXIT
+          docker compose -p ci -f deploy/compose.yml up -d --wait --wait-timeout 90
+          curl --fail --silent http://127.0.0.1:18080/api/health
+          curl --fail --silent http://127.0.0.1:18080/api/companies > /dev/null
+      - name: Export versioned image
+        run: docker save tradingapp:"$GITHUB_SHA" | gzip > image.tar.gz
+      - name: Configure SSH with verified host key
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$SSH_HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]] || { echo 'Set SSH_HOST to the public IPv4 address or hostname'; exit 1; }
+          [[ "$SSH_USER" =~ ^[a-z_][a-z0-9_-]*$ ]] || { echo 'Set SSH_USER'; exit 1; }
+          [[ "$SSH_PORT" =~ ^[0-9]+$ ]] && (( SSH_PORT > 0 && SSH_PORT <= 65535 ))
+          [[ "$APP_PORT" =~ ^[0-9]+$ ]] && (( APP_PORT > 0 && APP_PORT <= 65535 ))
+          test -n "$SSH_PRIVATE_KEY"
+          test -n "$SSH_KNOWN_HOSTS"
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+      - name: Transfer and deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          options=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=3)
+          target="$SSH_USER@$SSH_HOST"
+          incoming=$(ssh "${options[@]}" -p "$SSH_PORT" "$target" 'mktemp -d /opt/tradingapp/incoming.XXXXXXXX')
+          [[ "$incoming" =~ ^/opt/tradingapp/incoming\.[a-zA-Z0-9]+$ ]]
+          scp "${options[@]}" -P "$SSH_PORT" image.tar.gz deploy/compose.yml deploy/deploy.sh "$target:$incoming/"
+          ssh "${options[@]}" -p "$SSH_PORT" "$target" "bash '$incoming/deploy.sh' '$incoming' 'tradingapp:$GITHUB_SHA' '$APP_PORT'"
+      - name: Remove runner SSH credentials
+        if: always()
+        run: rm -f ~/.ssh/id_ed25519 ~/.ssh/known_hosts

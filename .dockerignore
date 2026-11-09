@@ -1,0 +1,9 @@
+*
+!Dockerfile
+!package.json
+!package-lock.json
+!companies.js
+!news.js
+!server.js
+!public/
+!public/**

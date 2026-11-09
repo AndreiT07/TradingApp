@@ -59,3 +59,7 @@ Testele de browser folosesc răspunsuri API controlate. Nu demonstrează accesul
 - `test/`: teste Node și Playwright.
 
 Nu există o etapă de build; serverul livrează direct fișierele din `public/`.
+
+## Deploy automat pe Hetzner
+
+Instrucțiunile complete pentru Ubuntu, Docker, acces pe IP și GitHub Actions sunt în [deploy/README.md](deploy/README.md). Workflow-ul existent testează aplicația și poate face deploy pe `main` după configurarea secretelor SSH și activarea variabilei `DEPLOY_ENABLED=true`. Nu este necesar un domeniu sau un registry Docker.
