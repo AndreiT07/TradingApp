@@ -135,7 +135,7 @@ test('background worker generates bilingual snapshots once, serves analysis, and
   try {
     await service.tick();const count=external, generated=generations;
     assert.equal(service.analysis(companies[0],'en').verdict,'hold');
-    assert.equal(service.analysis(companies[0],'en').rationale,'Risks and opportunities.');
+    assert.match(service.analysis(companies[0],'en').rationale,/do not give a clear buy signal/);
     await service.tick();await service.news(companies[0],'ro');
     assert.equal(external,count);assert.equal(generations,generated);
     const stale=store.get('analysis:AAPL').data;stale.financials.quoteAt='2000-01-01';store.put('analysis:AAPL',stale);
@@ -173,7 +173,7 @@ test('configuration diagnostics expose missing names without exposing values', a
     const result=service.analysis(companies[0],'ro');
     assert.equal(result.status,'not_configured');
     assert.ok(result.missing.includes('FINNHUB_API_KEY'));
-    assert.ok(result.missing.includes('AI_INPUT_USD_PER_MILLION'));
+    assert.equal(result.missing.includes('AI_INPUT_USD_PER_MILLION'),false);
     assert.equal(JSON.stringify(result).includes('do-not-expose-this-secret'),false);
   } finally {await service.stop();}
 });

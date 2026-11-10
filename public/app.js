@@ -152,7 +152,7 @@ function link(url, text = t('source')) {
   const anchor = element('a', 'source-link', text); anchor.href = url; anchor.target = '_blank'; anchor.rel = 'noopener noreferrer'; return anchor;
 }
 function statusMessage(data) {
-  if (data?.status === 'not_configured' && data.missing?.length) return `${t('setupIntro')} ${t('setupFile')}: ${data.missing.join(', ')}.`;
+  if (data?.status === 'not_configured' && data.missing?.length) return `${t(data.engine === 'rules-v1' ? 'signalSetupIntro' : 'setupIntro')} ${t('setupFile')}: ${data.missing.join(', ')}.`;
   if (data?.reason && data.status === 'unavailable') return t(data.reason);
   return t(!data ? 'loading' : ({ not_configured:'notConfigured', pending:'pending', unavailable:'sourceError', stale:'stale', budget_limited:'analysisBudget', demo:'example' }[data.status] ?? 'noAnalysis'));
 }
@@ -191,18 +191,34 @@ function renderResearch() {
     if (data.fetchedAt) investors.append(element('p', 'panel-note', `${t('fetched')}: ${dateTime(data.fetchedAt)}`));
   }
   const research = state.analysis;
-  const shortStatus = !research || research.status === 'pending' ? 'preparing' : research.status === 'not_configured' ? 'setupRequired' : research.status === 'unavailable' ? 'unavailable' : research.verdict ?? 'insufficient';
-  $('analysis-shortcut').textContent = `${t('analysis')}: ${t(shortStatus)} →`;
+  const shortStatus = !research || research.status === 'pending' ? 'preparing' : research.status === 'not_configured' ? 'setupRequired' : research.status === 'unavailable' ? 'unavailable' : research.buyDecision ?? research.verdict ?? 'insufficient';
+  $('analysis-shortcut').textContent = `${t(research?.engine === 'rules-v1' ? 'buySignal' : 'analysis')}: ${t(shortStatus)} →`;
   $('analysis-shortcut').title = t('horizon');
   if (research?.stale || research?.status === 'stale') analysis.append(element('p', 'data-warning', t('stale')));
-  analysis.append(element('span', `verdict verdict-${research?.verdict ?? 'insufficient'}`, t(research?.verdict ?? 'insufficient')));
+  analysis.append(element('span', `verdict verdict-${research?.verdict ?? 'insufficient'}`, t(research?.buyDecision ?? research?.verdict ?? 'insufficient')));
   if (research?.rationale) {
     analysis.append(element('p', 'analysis-rationale', research.rationale));
     for (const key of ['opportunities', 'risks']) {
+      if (!research[key]?.length) continue;
       analysis.append(element('h4', '', t(key))); const list = element('ul');
       for (const text of research[key] ?? []) list.append(element('li', '', text)); analysis.append(list);
     }
   } else analysis.append(element('p', 'panel-state', statusMessage(research)));
+  if (research?.criteria?.length) {
+    analysis.append(element('p', 'signal-score', `${t('score')}: ${research.score > 0 ? '+' : ''}${research.score ?? '—'}`));
+    const table = element('table', 'signal-criteria'), head = element('thead'), tr = element('tr');
+    for (const key of ['indicator', 'metricValue', 'points']) tr.append(element('th', '', t(key)));
+    head.append(tr); table.append(head); const body = element('tbody');
+    for (const criterion of research.criteria) {
+      const row = element('tr');
+      row.append(element('td', '', criterion.label), element('td', '', `${number(criterion.value)}${criterion.id === 'valuation' ? '×' : '%'}`), element('td', '', `${criterion.points > 0 ? '+' : ''}${criterion.points}`)); body.append(row);
+    }
+    table.append(body); analysis.append(table);
+  }
+  if (research?.methodology) {
+    const details = element('details', 'signal-method'), summary = element('summary', '', t('methodology'));
+    details.append(summary, element('p', 'panel-note', research.methodology)); analysis.append(details);
+  }
   if (research?.financials) {
     const facts = research.financials;
     analysis.append(element('h4', '', t('financials')), element('p', 'panel-note', `${t('price')}: ${number(facts.price)}`), element('p', 'panel-note', `${t('quoteDate')}: ${dateTime(facts.quoteAt)}`), element('p', 'panel-note', `${t('reportPeriod')}: ${facts.reportingPeriod}`));
@@ -211,7 +227,7 @@ function renderResearch() {
     analysis.append(element('h4', '', t('evidence'))); const list = element('ul');
     for (const item of research.evidence) { const row = element('li'); row.append(link(item.url, `${item.source} · ${item.date}`)); list.append(row); } analysis.append(list);
   }
-  if (research?.generatedAt) analysis.append(element('p', 'panel-note', `${t('generated')}: ${dateTime(research.generatedAt)} · ${research.model ?? '—'}`));
+  if (research?.generatedAt) analysis.append(element('p', 'panel-note', `${t('generated')}: ${dateTime(research.generatedAt)} · ${research.engine === 'rules-v1' ? t('rulesEngine') : research.model ?? '—'}`));
 }
 $('company-search').addEventListener('input', renderCompanies);
 $('category').addEventListener('change', event => { state.category = event.target.value; renderFeed(); });
@@ -236,3 +252,9 @@ try {
   const response = await fetch('/api/companies'); if (!response.ok) throw new Error('companies');
   state.companies = await response.json(); $('company-count').textContent = state.companies.length; selectCompany(state.ticker);
 } catch { state.error = 'companies'; renderFeed(); }
+
+// Read-only polling makes completed background work visible without invoking AI from the browser.
+setInterval(() => {
+  const pending = state.analysis?.status === 'pending' || state.investors?.status === 'pending' || state.articles.some(article => article.summary?.status === 'pending');
+  if (pending && !document.hidden && !state.demo && !state.loading) { loadNews(); loadResearch(); }
+}, 15000);

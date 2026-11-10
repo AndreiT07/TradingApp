@@ -110,3 +110,28 @@ test('explains missing configuration and provider failures in the selected langu
   await page.getByLabel('Limba interfeței').selectOption('en');
   await expect(page.locator('#analysis')).toContainText('The provider rejected the API key');
 });
+
+test('buy signal and the calculation are visible without an AI configuration',async({page})=>{
+  await page.route('**/api/news?*',route=>route.fulfill({json:data('AAPL')}));
+  await page.route('**/api/analysis?*',route=>route.fulfill({json:{status:'ready',engine:'rules-v1',verdict:'buy',buyDecision:'buy',score:3,rationale:'Regulile susțin o achiziție.',criteria:[{id:'revenue',label:'Creșterea veniturilor',value:15,points:1},{id:'earnings',label:'Creșterea EPS',value:20,points:1},{id:'valuation',label:'P/E',value:20,points:1}],methodology:'Cumpără la scor de cel puțin +2.',risks:['Euristica nu a fost validată istoric.'],opportunities:[]}}));
+  await page.goto('/');
+  await expect(page.locator('#analysis-shortcut')).toHaveText('Semnal de cumpărare: Cumpără →');
+  await page.locator('#analysis-shortcut').click();
+  await expect(page.locator('#analysis .verdict')).toHaveText('Cumpără');
+  await expect(page.locator('.signal-score')).toHaveText('Scor: +3');
+  await expect(page.locator('.signal-criteria tbody tr')).toHaveCount(3);
+  await page.getByText('Cum se calculează',{exact:true}).click();
+  await expect(page.getByText('Cumpără la scor de cel puțin +2.')).toBeVisible();
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+});
+
+test('completed background signals appear automatically after an initial pending state',async({page})=>{
+  await page.clock.install();let requests=0;
+  await page.route('**/api/news?*',route=>route.fulfill({json:data('AAPL')}));
+  await page.route('**/api/analysis?*',route=>route.fulfill({json:++requests===1?{status:'pending',engine:'rules-v1',verdict:'insufficient',buyDecision:'insufficient'}:{status:'ready',engine:'rules-v1',verdict:'hold',buyDecision:'wait',rationale:'Semnale mixte.'}}));
+  await page.goto('/');
+  await expect(page.locator('#analysis-shortcut')).toContainText('În pregătire');
+  await page.clock.fastForward(15000);
+  await expect(page.locator('#analysis-shortcut')).toContainText('Așteaptă');
+  await expect(page.locator('#analysis .verdict')).toHaveText('Așteaptă');
+});

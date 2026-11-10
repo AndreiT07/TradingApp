@@ -1,6 +1,6 @@
 # TradingApp
 
-Știri pentru zece companii mari listate în SUA, cu interfață română/engleză, rezumate AI și cercetare financiară generală. Node.js 24+, fără etapă de build frontend.
+Știri pentru zece companii mari listate în SUA, cu interfață română/engleză, rezumate AI și semnale explicabile pe indicatori financiari. Node.js 24+, fără etapă de build frontend.
 
 ## Pornire
 
@@ -20,7 +20,7 @@ Fără chei API, știrile continuă prin Google News RSS, iar secțiunile neconf
 - Rezumate în pagină, bazate exclusiv pe descrierile furnizate de API. Nu se pretinde acces la articolul integral. Pentru un titlu fără text, rezumatul este indisponibil.
 - Fonduri urmărite: Berkshire Hathaway, Pershing Square și Bridgewater, prin raportări SEC 13F. Comparăm două perioade; ajustăm split-urile când datele sunt disponibile. Fără ajustări verificate afișăm numai deținerile brute și nu deducem direcția schimbării. Modificările de dețineri nu sunt tranzacții observate în timp real; alte operațiuni corporative pot necesita verificare manuală.
 - Insideri: până la 12 raportări recente Form 4 / 4-A pentru fiecare companie. Codurile P/S sunt distincte de acordări, exercitări și alte operațiuni. Raportările rectificative sunt marcate, fără însumarea netă a originalelor și rectificărilor. Instrumentele derivate au un contor separat.
-- Opinie AI generală „Cumpără / Păstrează / Vinde”, orizont 6–12 luni, cu argumente, riscuri și surse. Nu folosește portofoliul personal și nu execută tranzacții. Când datele sunt insuficiente sau vechi, verdictul devine „Date insuficiente”.
+- Semnal „Cumpără / Așteaptă / Evită cumpărarea”, orizont 6–12 luni, calculat prin reguli transparente, fără OpenAI. Afișează indicatorii, punctele, pragurile și sursa. Nu folosește portofoliul personal și nu execută tranzacții. Când datele sunt insuficiente sau vechi, verdictul devine „Date insuficiente”.
 
 Nu există integrare XTB, autentificare, ordine de bursă sau prețuri în timp real garantate.
 
@@ -31,7 +31,7 @@ Vezi [deploy/runtime.env.example](deploy/runtime.env.example) pentru numele vari
 | Serviciu | Configurare | Utilizare |
 |---|---|---|
 | Finnhub | `FINNHUB_API_KEY`, `DATA_PROVIDER_TERMS_ACCEPTED=true` | Știri cu descrieri, cotații, indicatori și split-uri |
-| OpenAI Responses API | `AI_API_KEY`, `AI_MODEL`, prețurile input/output | Rezumate bilingve și analiză generală |
+| OpenAI Responses API | `AI_API_KEY`, `AI_MODEL`, prețurile input/output | Numai rezumate bilingve; semnalul financiar nu are nevoie de OpenAI |
 | SEC EDGAR | `SEC_USER_AGENT` cu nume aplicație și email real de contact | Raportări 13F și Form 4 |
 
 Folosește Finnhub numai cu un plan care permite accesul la endpoint-urile respective și afișarea datelor în aplicația ta. Nu se achiziționează automat abonamente. Endpoint-urile neincluse în plan sunt tratate ca indisponibile, fără înlocuirea lor cu date simulate. Documentație: [Finnhub](https://finnhub.io/docs/api), [SEC](https://www.sec.gov/search-filings/edgar-application-programming-interfaces), [OpenAI pricing](https://openai.com/api/pricing/).
@@ -55,7 +55,7 @@ Un worker din server pornește după o secundă și verifică sarcinile o dată 
 
 - Știri Finnhub: actualizare la șase ore pentru toate cele zece companii. Google News RSS de rezervă este preluat la cerere, cu cache de cinci minute și deduplicarea cererilor simultane.
 - Rezumate: cel mult trei încercări noi pe companie/zi UTC, pentru primele trei descrieri prioritare; o generare produce ambele limbi. Alte articole pot rămâne fără rezumat. Rezumatele gata sunt reutilizate.
-- Date SEC și analiză: actualizare zilnică. SEC este accesat serial, la cel mult patru cereri pe secundă, cu cache de o zi. Scanarea folosește raportările din lista `recent`; dacă nu sunt disponibile două perioade complete, nu inventează o comparație.
+- Date SEC și semnal financiar: actualizare zilnică. Cotațiile și indicatorii sunt preluați înaintea rezumatelor AI și a raportărilor SEC. Pagina verifică automat rezultatele la 15 secunde cât timp există operațiuni în pregătire, fără declanșarea AI din browser. SEC este accesat serial, la cel mult patru cereri pe secundă, cu cache de o zi. Scanarea folosește raportările din lista `recent`; dacă nu sunt disponibile două perioade complete, nu inventează o comparație.
 - Analiza cere o cotație de maximum cinci zile, un trimestru financiar de maximum 200 de zile și cel puțin trei indicatori numerici. Aceste praguri permit weekenduri și raportări trimestriale; nu reprezintă feed bursier în timp real. Analiza mai veche de două zile este marcată și verdictul activ este retras.
 - `AI_MONTHLY_LIMIT_USD` poate micșora plafonul, dar nu îl poate crește peste **8 USD/lună UTC**, lăsând marjă în bugetul de 10 USD. Limitarea este pentru apelurile AI ale acestei aplicații; abonamentele furnizorilor și consumul altor aplicații cu aceeași cheie trebuie gestionate separat.
 - Costul maxim estimat este rezervat tranzacțional înainte de apel, pe baza numărului de bytes, plafonului de output și tarifelor configurate. Utilizarea raportată ajustează rezervarea. La timeout fără utilizare confirmată, rezervarea rămâne și aceeași generare nu se repetă în aceeași zi. Plafonul depinde de corectitudinea tarifelor configurate; setează și notificările de facturare ale furnizorului.
@@ -69,7 +69,7 @@ Toate endpoint-urile sunt GET. `ticker` este limitat la universul din `companies
 - `/api/companies`: lista companiilor.
 - `/api/news?ticker=AAPL&lang=ro`: articole, titlu original, rezumat localizat și stări `ready`, `no_text`, `not_configured`, `pending`, `budget_limited`, `unavailable`.
 - `/api/investors?ticker=AAPL&lang=ro`: date brute cu coduri stabile, fonduri, insideri, linkuri și date de raportare; etichetele sunt traduse în browser.
-- `/api/analysis?ticker=AAPL&lang=ro`: verdict stabil `buy|hold|sell|insufficient`, explicații localizate, dovezi, perioada financiară și timestamp-uri. Fără date configurate răspunde 200 cu starea explicită, nu cu un verdict inventat.
+- `/api/analysis?ticker=AAPL&lang=ro`: `buyDecision=buy|wait|avoid|insufficient`, `engine=rules-v1`, scor, criterii, explicații localizate, surse și timestamp-uri. Câmpul `verdict=buy|hold|sell|insufficient` este păstrat pentru compatibilitate; `sell` din acest filtru înseamnă evitarea unei noi achiziții, nu un ordin de vânzare. Fără date configurate răspunde 200 cu starea explicită, nu cu un verdict inventat.
 - `/api/health`: numai starea serverului; nu verifică accesul la furnizori.
 
 ## Rețea și validare live
@@ -94,8 +94,23 @@ Testele acoperă RSS, AI invalid/indisponibil, buget persistent și cereri concu
 
 ### Dacă lipsesc rezumatele sau verdictul
 
-Deploy-ul nu configurează automat cheile API. Mai întâi verifică `/api/analysis?ticker=AAPL&lang=ro`: `not_configured` include acum numai numele setărilor lipsă/invalide, fără valori. Pagina explică aceste setări în „De ce lipsesc rezumatele și analiza?”. Pentru rezultate generate sunt necesare Finnhub (cheie și acces la date) și OpenAI (cheie și tarife configurate).
+Deploy-ul nu configurează automat cheile API. Mai întâi verifică `/api/analysis?ticker=AAPL&lang=ro`: `not_configured` include acum numai numele setărilor lipsă/invalide, fără valori. Pagina explică aceste setări în „De ce lipsesc rezumatele și analiza?”. Pentru semnal sunt necesare numai Finnhub (cheie și acces la date) și `DATA_PROVIDER_TERMS_ACCEPTED=true`. Rezumatele AI cer separat OpenAI și tarifele configurate.
 
 `unavailable` include un cod sigur pentru autentificare refuzată, acces nepermis, cotă/rate limit, timeout sau rezultat AI invalid. Nu copia cheia sau întregul `runtime.env` în mesaje de suport. Eșecurile preluării datelor nu mai lasă analiza permanent „pending”; cererile de date eșuate sunt reluate după cinci minute. Limitele și rezervările de cost AI rămân active.
 
 Pe VM, după configurarea securizată a `runtime.env`, aplică `docker compose up -d --force-recreate --wait --wait-timeout 90`. Prezența unei variabile nu dovedește că cheia este validă ori că abonamentul permite endpoint-urile; verifică și starea returnată de API.
+
+
+## Regulile semnalului de cumpărare
+
+Semnalul nu necesită `AI_API_KEY` sau tarife OpenAI. Necesită `FINNHUB_API_KEY` și `DATA_PROVIDER_TERMS_ACCEPTED=true`, cu acces la cotații și Basic Financials. Generarea este zilnică; API-ul de citire nu face cereri plătite la fiecare vizită.
+
+| Indicator | +1 | 0 | −1 |
+|---|---|---|---|
+| Creșterea anuală a veniturilor | ≥10% | ≥0% și <10% | <0% |
+| Creșterea anuală a profitului pe acțiune | ≥10% | ≥0% și <10% | <0% |
+| P/E pe ultimele 12 luni | >0 și ≤25 | >25 și ≤40 | >40 |
+
+**Cumpără**: scor ≥+2, fără venituri sau EPS în scădere. **Evită cumpărarea**: scor ≤−2. **Așteaptă**: celelalte scoruri. Scorul nu este o probabilitate de câștig. Datele lipsă, expirate, nefinite sau P/E nepozitiv produc „Date insuficiente”; o companie fără profit nu este declarată automat ieftină.
+
+Aceste praguri sunt o euristică fără validare istorică, nu o strategie completă. Nu iau în calcul datoria, fluxul de numerar, diferențele dintre sectoare, evoluția viitoare sau situația personală. Linkul „Semnal de cumpărare” de lângă companie duce la explicații și tabelul complet, în RO/EN. Rezultatele vechi care conțin indicatori financiari valizi sunt recalculate cu regulile curente fără apeluri AI.
