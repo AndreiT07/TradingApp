@@ -2,6 +2,8 @@
 FROM node:24-bookworm-slim
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=3000
 WORKDIR /app
+ENV DATA_PATH=/data/tradingapp.sqlite
+RUN mkdir -p /data && chown node:node /data
 COPY --chown=node:node package.json package-lock.json ./
 # Optional CA mount is used only by managed cloud builds with an HTTPS proxy.
 RUN --mount=type=secret,id=proxy_ca \
@@ -9,6 +11,7 @@ RUN --mount=type=secret,id=proxy_ca \
     npm ci --omit=dev --ignore-scripts --strict-ssl=true && npm cache clean --force
 COPY --chown=node:node companies.js news.js server.js ./
 COPY --chown=node:node public ./public
+COPY --chown=node:node lib ./lib
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \

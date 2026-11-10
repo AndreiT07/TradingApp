@@ -120,3 +120,19 @@ docker compose up -d --wait --wait-timeout 90
 Imaginile vechi nu sunt șterse automat, pentru a permite rollback. Verifică periodic `docker system df` și elimină selectiv versiunile de care nu mai ai nevoie; nu elimina imaginea activă sau cea de rollback. Arhiva transferată este ștearsă după deploy. Dacă transferul SSH se întrerupe înainte de executarea scriptului, pot rămâne directoare `incoming.*` de curățat manual.
 
 Nu adăuga autentificare sau date sensibile pe această conexiune HTTP; configurează HTTPS înainte de acea etapă.
+
+## Configurarea rezumatelor și cercetării
+
+Imaginea include acum rezumate RO/EN, raportări SEC și analiză financiară. Pentru date live, copiază structura din [runtime.env.example](runtime.env.example) în `/opt/tradingapp/runtime.env`, completează securizat valorile și aplică `chmod 600 /opt/tradingapp/runtime.env`. Nu comite acest fișier și nu pune cheile în `.env`, care este regenerat la deploy.
+
+După schimbarea configurației:
+
+```bash
+cd /opt/tradingapp
+docker compose up -d --force-recreate --wait --wait-timeout 90
+docker compose logs --tail=100
+```
+
+Validează planul Finnhub și dreptul de afișare înainte de `DATA_PROVIDER_TERMS_ACCEPTED=true`. Configurează cheia OpenAI și prețurile reale per milion de tokeni; fără ele generarea AI rămâne oprită. Pentru SEC folosește un nume de aplicație și un email real de contact în `SEC_USER_AGENT`.
+
+Datele și evidența bugetului sunt într-un volum SQLite persistent `tradingapp_data`. **Nu folosi `down -v`**, deoarece ar elimina și evidența consumului. Deploy-ul păstrează `runtime.env` și volumul; backup-ul imaginii/configurației nu înlocuiește backup-ul volumului. Aplicația rulează fără chei și afișează stări explicite pentru funcțiile neconfigurate. Detalii despre costuri și restricții: [README](../README.md).

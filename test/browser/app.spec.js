@@ -46,3 +46,54 @@ test('treats untrusted titles as text and supports empty category', async ({ pag
   await page.getByLabel('Subiect', { exact: true }).selectOption('Reglementări');
   await expect(page.getByText('Nicio știre pentru moment.')).toBeVisible();
 });
+
+test('switches the whole interface and summaries to English and persists the preference', async ({ page }) => {
+  await page.route('**/api/news?*', route => {
+    const url = new URL(route.request().url()), english = url.searchParams.get('lang') === 'en';
+    const result = data(url.searchParams.get('ticker'));
+    result.articles[0] = { ...result.articles[0], title: english ? 'Apple quarterly results' : 'Rezultatele trimestriale Apple', originalTitle:'Apple quarterly results', titleTranslated:true, summary:{status:'ready', text:english?'Revenue increased in the reported quarter.':'Veniturile au crescut în trimestrul raportat.'} };
+    return route.fulfill({json:result});
+  });
+  await page.goto('/');
+  await expect(page.getByText('Veniturile au crescut în trimestrul raportat.')).toBeVisible();
+  await page.getByLabel('Limba interfeței').selectOption('en');
+  await expect(page.getByRole('button',{name:'Most important',exact:true})).toBeVisible();
+  await expect(page.getByText('Revenue increased in the reported quarter.')).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('lang','en');
+  await page.getByLabel('Topic',{exact:true}).selectOption('Rezultate financiare');
+  await expect(page.locator('article')).toHaveCount(1);
+  await page.reload();
+  await expect(page.getByLabel('Interface language')).toHaveValue('en');
+  await expect(page.getByRole('button',{name:'Most recent',exact:true})).toBeVisible();
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+});
+
+test('shows sourced investor filings, amendment warnings and grounded company research', async ({ page }) => {
+  await page.route('**/api/news?*',route=>route.fulfill({json:data('AAPL')}));
+  await page.route('**/api/investors?*',route=>route.fulfill({json:{status:'ready',funds:[{name:'Example Fund',status:'ready',shares:100,previousShares:80,period:'2026-09-30',previousPeriod:'2026-06-30',change:'increased',filedAt:'2026-11-01',filingUrl:'https://www.sec.gov/example'}],insiders:[{owners:[{name:'Example Officer'}],action:'purchase',code:'P',shares:10,date:'2026-11-01',filedAt:'2026-11-02',filingUrl:'https://www.sec.gov/form4',amended:true}],otherCount:2}}));
+  await page.route('**/api/analysis?*',route=>route.fulfill({json:{status:'ready',verdict:'hold',rationale:'Evaluarea limitează potențialul.',opportunities:['Venituri în creștere'],risks:['Concurență'],evidence:[{source:'SEC',date:'2026-09-30',url:'https://www.sec.gov/example'}],generatedAt:'2026-11-09T12:00:00Z'}}));
+  await page.goto('/');
+  await expect(page.getByText('Example Fund',{exact:true})).toBeVisible();
+  await expect(page.getByText('Deținere raportată crescută')).toBeVisible();
+  await expect(page.getByText('Raportare rectificativă; verifică originalul.')).toBeVisible();
+  await expect(page.locator('#analysis .verdict')).toHaveText('Păstrează');
+  await expect(page.getByText('Evaluarea limitează potențialul.')).toBeVisible();
+  await expect(page.locator('#analysis a')).toHaveAttribute('href','https://www.sec.gov/example');
+  await page.screenshot({path:`test-results/research-${test.info().project.name}.png`,fullPage:true});
+});
+
+test('missing summaries and credentials are explicit; demo switches language without live-looking claims', async ({ page }) => {
+  await page.route('**/api/news?*',route=>route.fulfill({json:{...data('AAPL'),articles:[{...data('AAPL').articles[0],summary:{status:'no_text'}}]}}));
+  await page.goto('/');
+  await expect(page.getByText('Rezumat indisponibil: sursa oferă doar titlul.')).toBeVisible();
+  await expect(page.locator('#investors')).toContainText('Sursa nu este configurată încă pe server.');
+  await expect(page.locator('#analysis .verdict')).toHaveText('Date insuficiente');
+  await page.route('**/api/news?*',route=>route.fulfill({status:503,json:{error:'unavailable'}}));
+  await page.getByRole('button',{name:'Actualizează'}).click();
+  await page.getByRole('button',{name:'Explorează demonstrația'}).click();
+  await page.getByLabel('Limba interfeței').selectOption('en');
+  await expect(page.locator('#demo-notice')).toContainText('DEMO MODE');
+  await expect(page.locator('article').first()).toContainText('fictional summary example');
+  await expect(page.locator('#analysis')).toContainText('not an actual recommendation');
+  await expect(page.locator('article a')).toHaveCount(0);
+});
