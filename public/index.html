@@ -20,9 +20,11 @@
       <div class="context-strip"><span class="strip-icon">◎</span><span data-i18n="context">O perspectivă mai bună începe cu informația potrivită.</span><span class="strip-end" data-i18n="sources">10 companii · Surse multiple</span></div>
       <section class="news-section" aria-labelledby="company-title">
         <div class="company-header"><div class="company-identity"><span id="selected-logo" class="selected-logo">a</span><div><div class="company-title-row"><h2 id="company-title">Apple</h2><span id="selected-ticker" class="ticker">AAPL</span></div><p id="selected-sector">Tehnologie · Statele Unite</p></div></div><button id="refresh" class="refresh" type="button"><span aria-hidden="true">↻</span> <span data-i18n="refresh">Actualizează</span></button></div>
+        <a id="analysis-shortcut" class="analysis-shortcut" href="#analysis-title"></a>
         <div class="news-toolbar"><div class="tabs" aria-label="Ordonare știri"><button class="tab active" id="sort-important" type="button" aria-pressed="true" data-i18n="important">Cele mai importante</button><button class="tab" id="sort-recent" type="button" aria-pressed="false" data-i18n="recent">Cele mai recente</button></div><span id="news-status" class="news-status">Se încarcă…</span></div>
         <div class="filter-row"><label for="category" data-i18n="subject">Subiect</label><select id="category"><option value="all">Toate subiectele</option><option>Rezultate financiare</option><option>Reglementări</option><option>Tranzacții &amp; strategie</option><option>Produse &amp; inovație</option><option>Companie &amp; piață</option></select><span data-i18n="priority" class="ranking-info" title="Prioritate după cuvinte-cheie din titlu și recență; nu este o recomandare de investiții.">ⓘ Prioritate după subiect și recență</span></div>
         <div id="demo-notice" class="demo-notice" hidden><span data-i18n="demoNotice"></span><button id="exit-demo" type="button" data-i18n="exitDemo">Revino la știri live</button></div>
+        <details id="setup-notice" class="setup-notice" hidden><summary data-i18n="setupHelp"></summary><p id="setup-explanation"></p></details>
         <div id="feed" aria-live="polite" aria-busy="true"></div>
         <div id="updated" class="updated"></div>
       </section>

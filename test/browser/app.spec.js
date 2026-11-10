@@ -77,6 +77,7 @@ test('shows sourced investor filings, amendment warnings and grounded company re
   await expect(page.getByText('Deținere raportată crescută')).toBeVisible();
   await expect(page.getByText('Raportare rectificativă; verifică originalul.')).toBeVisible();
   await expect(page.locator('#analysis .verdict')).toHaveText('Păstrează');
+  await expect(page.locator('#analysis-shortcut')).toContainText('Păstrează');
   await expect(page.getByText('Evaluarea limitează potențialul.')).toBeVisible();
   await expect(page.locator('#analysis a')).toHaveAttribute('href','https://www.sec.gov/example');
   await page.screenshot({path:`test-results/research-${test.info().project.name}.png`,fullPage:true});
@@ -96,4 +97,16 @@ test('missing summaries and credentials are explicit; demo switches language wit
   await expect(page.locator('article').first()).toContainText('fictional summary example');
   await expect(page.locator('#analysis')).toContainText('not an actual recommendation');
   await expect(page.locator('article a')).toHaveCount(0);
+});
+
+test('explains missing configuration and provider failures in the selected language',async({page})=>{
+  await page.route('**/api/news?*',route=>route.fulfill({json:{...data('AAPL'),setup:{missing:['FINNHUB_API_KEY','AI_API_KEY']}}}));
+  await page.route('**/api/analysis?*',route=>route.fulfill({json:{status:'unavailable',verdict:'insufficient',reason:'provider_auth'}}));
+  await page.goto('/');
+  await expect(page.locator('#setup-notice')).toBeVisible();
+  await page.locator('#setup-notice summary').click();
+  await expect(page.locator('#setup-explanation')).toContainText('FINNHUB_API_KEY');
+  await expect(page.locator('#analysis')).toContainText('Furnizorul nu acceptă cheia API');
+  await page.getByLabel('Limba interfeței').selectOption('en');
+  await expect(page.locator('#analysis')).toContainText('The provider rejected the API key');
 });

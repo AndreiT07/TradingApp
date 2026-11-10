@@ -91,3 +91,11 @@ Playwright folosește `/usr/bin/chromium`, dacă există; alternativ `npx playwr
 Testele acoperă RSS, AI invalid/indisponibil, buget persistent și cereri concurente, date financiare expirate, raportări rectificative SEC, split-uri, XSS, limbă persistentă, rezumate și cercetare pe desktop/mobil. CI rulează testele, construiește containerul și verifică sănătatea lui înainte de deploy.
 
 [Deploy pe Hetzner](deploy/README.md): push pe `main` după testare declanșează deploy-ul când `DEPLOY_ENABLED=true`. Cheile API se configurează separat pe VM. Nu este necesar un domeniu pentru configurația HTTP existentă.
+
+### Dacă lipsesc rezumatele sau verdictul
+
+Deploy-ul nu configurează automat cheile API. Mai întâi verifică `/api/analysis?ticker=AAPL&lang=ro`: `not_configured` include acum numai numele setărilor lipsă/invalide, fără valori. Pagina explică aceste setări în „De ce lipsesc rezumatele și analiza?”. Pentru rezultate generate sunt necesare Finnhub (cheie și acces la date) și OpenAI (cheie și tarife configurate).
+
+`unavailable` include un cod sigur pentru autentificare refuzată, acces nepermis, cotă/rate limit, timeout sau rezultat AI invalid. Nu copia cheia sau întregul `runtime.env` în mesaje de suport. Eșecurile preluării datelor nu mai lasă analiza permanent „pending”; cererile de date eșuate sunt reluate după cinci minute. Limitele și rezervările de cost AI rămân active.
+
+Pe VM, după configurarea securizată a `runtime.env`, aplică `docker compose up -d --force-recreate --wait --wait-timeout 90`. Prezența unei variabile nu dovedește că cheia este validă ori că abonamentul permite endpoint-urile; verifică și starea returnată de API.

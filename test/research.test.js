@@ -165,3 +165,40 @@ test('insider adapter excludes filings in which the selected company owns anothe
   sec.get=async()=>'<ownershipDocument><issuer><issuerCik>789019</issuerCik></issuer><nonDerivativeTable><nonDerivativeTransaction><transactionCoding><transactionCode>P</transactionCode></transactionCoding></nonDerivativeTransaction></nonDerivativeTable></ownershipDocument>';
   try { assert.equal((await sec.insiders(companies[0])).transactions.length,0); } finally {store.close();}
 });
+
+test('configuration diagnostics expose missing names without exposing values', async () => {
+  const store=new Store(':memory:');
+  const service=new Research({store,env:{AI_API_KEY:'do-not-expose-this-secret'}});
+  try {
+    const result=service.analysis(companies[0],'ro');
+    assert.equal(result.status,'not_configured');
+    assert.ok(result.missing.includes('FINNHUB_API_KEY'));
+    assert.ok(result.missing.includes('AI_INPUT_USD_PER_MILLION'));
+    assert.equal(JSON.stringify(result).includes('do-not-expose-this-secret'),false);
+  } finally {await service.stop();}
+});
+
+test('market-data failures are surfaced instead of leaving analysis permanently pending', async () => {
+  const store=new Store(':memory:');
+  const configured={...env,FINNHUB_API_KEY:'configured',DATA_PROVIDER_TERMS_ACCEPTED:'true'};
+  const service=new Research({store,env:configured,call:async()=>{const error=new Error('sensitive provider message');error.status=403;throw error;}});
+  try {
+    await service.due('analysis:AAPL',86400000,()=>service.refreshAnalysis(companies[0]));
+    const result=service.analysis(companies[0],'ro');
+    assert.equal(result.status,'unavailable');assert.equal(result.reason,'provider_access');
+    assert.equal(JSON.stringify(result).includes('sensitive provider message'),false);
+    const prior=store.get('attempt:analysis:AAPL');
+    store.put('attempt:analysis:AAPL',prior.data,new Date(Date.now()-6*60000).toISOString());
+    let retried=false;await service.due('analysis:AAPL',86400000,async()=>{retried=true;});
+    assert.equal(retried,true);
+  } finally {await service.stop();}
+});
+
+test('AI failures report safe actionable categories without logging provider secrets', async () => {
+  const store=new Store(':memory:');
+  const ai=new AI(store,{env,call:async()=>{const error=new Error('secret token');error.status=401;throw error;}});
+  try {
+    const result=await ai.generate('summary','AAPL',{description:'A real source description'});
+    assert.equal(result.reason,'provider_auth');assert.equal(JSON.stringify(result).includes('secret token'),false);
+  } finally {store.close();}
+});

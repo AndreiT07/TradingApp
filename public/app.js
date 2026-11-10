@@ -1,6 +1,6 @@
 import { t, lang, setLanguage, categoryKeys, sectorKeys } from './i18n.js';
 const $ = id => document.getElementById(id);
-const state = { companies: [], ticker: 'AAPL', articles: [], sort: 'important', category: 'all', demo: false, loading: false, error: null, fetchedAt: null, stale: false, investors: null, analysis: null };
+const state = { companies: [], ticker: 'AAPL', articles: [], sort: 'important', category: 'all', demo: false, loading: false, error: null, fetchedAt: null, stale: false, setup: null, investors: null, analysis: null };
 let requestController, researchController;
 const dateTime = value => new Intl.DateTimeFormat(lang() === 'ro' ? 'ro-RO' : 'en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
 const number = value => value == null ? '—' : new Intl.NumberFormat(lang(), { maximumFractionDigits: 2 }).format(value);
@@ -72,7 +72,7 @@ async function loadNews() {
     const response = await fetch(`/api/news?ticker=${encodeURIComponent(state.ticker)}&lang=${lang()}`, { signal: controller.signal });
     if (!response.ok) throw new Error('news');
     const data = await response.json(); if (controller !== requestController) return;
-    state.articles = data.articles; state.fetchedAt = data.fetchedAt; state.stale = data.stale;
+    state.articles = data.articles; state.fetchedAt = data.fetchedAt; state.stale = data.stale; state.setup = data.setup;
   } catch (error) { if (error.name === 'AbortError') return; state.error = 'news'; }
   finally { if (controller === requestController) { state.loading = false; renderFeed(); } }
 }
@@ -102,6 +102,9 @@ function emptyState(title, description, actions = []) {
   container.append(buttons); return container;
 }
 function renderFeed() {
+  const missing = state.setup?.missing ?? [];
+  $('setup-notice').hidden = state.demo || !missing.length;
+  $('setup-explanation').textContent = `${t('setupIntro')} ${t('setupFile')}: ${missing.join(', ')}.`;
   $('refresh').disabled = state.loading; $('demo-notice').hidden = !state.demo;
   $('feed').setAttribute('aria-busy', String(state.loading)); $('feed').replaceChildren();
   $('updated').textContent = state.fetchedAt ? `${state.stale ? t('staleCache') + ' · ' : ''}${t('fetched')} · ${dateTime(state.fetchedAt)} · ${t('cache')}` : '';
@@ -131,7 +134,7 @@ function renderFeed() {
       summary.append(element('span', 'summary-label', t('summary')), element('p', '', article.summary.text), element('small', '', state.demo ? t('example') : t('summaryBasis')));
     } else {
       const key = { pending:'summaryPending', not_configured:'summaryConfig', budget_limited:'summaryBudget', no_text:'noText' }[article.summary?.status] ?? 'summaryError';
-      summary.append(element('p', 'summary-missing', t(key)));
+      summary.append(element('p', 'summary-missing', article.summary?.reason ? t(article.summary.reason) : t(key)));
     }
     if (article.originalTitle && article.originalTitle !== article.title) summary.append(element('small', 'original-headline', `${t('originalTitle')}: ${article.originalTitle}`));
     else if (!state.demo && !article.titleTranslated) summary.append(element('small', '', t('originalLanguage')));
@@ -149,6 +152,8 @@ function link(url, text = t('source')) {
   const anchor = element('a', 'source-link', text); anchor.href = url; anchor.target = '_blank'; anchor.rel = 'noopener noreferrer'; return anchor;
 }
 function statusMessage(data) {
+  if (data?.status === 'not_configured' && data.missing?.length) return `${t('setupIntro')} ${t('setupFile')}: ${data.missing.join(', ')}.`;
+  if (data?.reason && data.status === 'unavailable') return t(data.reason);
   return t(!data ? 'loading' : ({ not_configured:'notConfigured', pending:'pending', unavailable:'sourceError', stale:'stale', budget_limited:'analysisBudget', demo:'example' }[data.status] ?? 'noAnalysis'));
 }
 function renderResearch() {
@@ -186,6 +191,9 @@ function renderResearch() {
     if (data.fetchedAt) investors.append(element('p', 'panel-note', `${t('fetched')}: ${dateTime(data.fetchedAt)}`));
   }
   const research = state.analysis;
+  const shortStatus = !research || research.status === 'pending' ? 'preparing' : research.status === 'not_configured' ? 'setupRequired' : research.status === 'unavailable' ? 'unavailable' : research.verdict ?? 'insufficient';
+  $('analysis-shortcut').textContent = `${t('analysis')}: ${t(shortStatus)} →`;
+  $('analysis-shortcut').title = t('horizon');
   if (research?.stale || research?.status === 'stale') analysis.append(element('p', 'data-warning', t('stale')));
   analysis.append(element('span', `verdict verdict-${research?.verdict ?? 'insufficient'}`, t(research?.verdict ?? 'insufficient')));
   if (research?.rationale) {
