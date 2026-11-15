@@ -1,6 +1,6 @@
 # TradingApp
 
-Știri pentru zece companii mari listate în SUA, cu interfață română/engleză, rezumate AI și semnale explicabile pe indicatori financiari. Node.js 24+, fără etapă de build frontend.
+Știri pentru zece companii mari listate în SUA și crypto (piața generală, Bitcoin, Ethereum, Solana), cu interfață română/engleză, rezumate AI și semnale explicabile pe indicatori financiari. Node.js 24+, fără etapă de build frontend.
 
 ## Pornire
 
@@ -114,3 +114,9 @@ Semnalul nu necesită `AI_API_KEY` sau tarife OpenAI. Necesită `FINNHUB_API_KEY
 **Cumpără**: scor ≥+2, fără venituri sau EPS în scădere. **Evită cumpărarea**: scor ≤−2. **Așteaptă**: celelalte scoruri. Scorul nu este o probabilitate de câștig. Datele lipsă, expirate, nefinite sau P/E nepozitiv produc „Date insuficiente”; o companie fără profit nu este declarată automat ieftină.
 
 Aceste praguri sunt o euristică fără validare istorică, nu o strategie completă. Nu iau în calcul datoria, fluxul de numerar, diferențele dintre sectoare, evoluția viitoare sau situația personală. Linkul „Semnal de cumpărare” de lângă companie duce la explicații și tabelul complet, în RO/EN. Rezultatele vechi care conțin indicatori financiari valizi sunt recalculate cu regulile curente fără apeluri AI.
+
+## Știri crypto
+
+Secțiunea Crypto din bara laterală folosește Google News RSS fără chei API suplimentare, cu cache de cinci minute, surse și data publicării. Căutarea, filtrele și ordonarea funcționează și pentru crypto. Titlurile rămân în limba sursei; RSS nu oferă texte pentru rezumate AI. Analiza financiară și raportările SEC sunt afișate numai pentru companii.
+
+`GET /api/crypto` listează activele; `/api/news?ticker=CRYPTO|BTC|ETH|SOL&lang=ro|en` returnează știrile. Endpoint-urile de analiză și investitori rămân limitate la companii.

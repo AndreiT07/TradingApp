@@ -1,6 +1,7 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import { cryptoAssets } from './crypto.js';
 import { companies } from './companies.js';
 import { Research } from './lib/research.js';
 const assets = { '/': ['index.html', 'text/html; charset=utf-8'], '/app.js': ['app.js', 'text/javascript; charset=utf-8'], '/styles.css': ['styles.css', 'text/css; charset=utf-8'], '/i18n.js': ['i18n.js', 'text/javascript; charset=utf-8'] };
@@ -17,12 +18,14 @@ export function makeServer({ research } = {}) {
     if (!['GET', 'HEAD'].includes(req.method)) { res.setHeader('allow', 'GET, HEAD'); return json(res, 405, { error: 'METHOD_NOT_ALLOWED' }); }
     const url = new URL(req.url, 'http://localhost');
     if (url.pathname === '/api/health') return json(res, 200, { status: 'ok' });
+    if (url.pathname === '/api/crypto') return json(res, 200, cryptoAssets.map(({ query, keywords, ...asset }) => asset));
     if (url.pathname === '/api/companies') return json(res, 200, companies.map(({ query, keywords, ...company }) => company));
     if (['/api/news', '/api/investors', '/api/analysis'].includes(url.pathname)) {
       const lang = url.searchParams.get('lang') || 'ro';
       if (!['ro', 'en'].includes(lang)) return json(res, 400, { error: 'INVALID_LANGUAGE' });
       const ticker = url.searchParams.get('ticker') || 'AAPL';
-      const company = companies.find(c => c.ticker === ticker);
+      const universe = url.pathname === '/api/news' ? [...companies, ...cryptoAssets] : companies;
+      const company = universe.find(c => c.ticker === ticker);
       if (!company) return json(res, 400, { error: 'UNKNOWN_COMPANY', message: 'Companie necunoscută.' });
       try { return json(res, 200, await (url.pathname === '/api/news' ? service.news(company, lang) : url.pathname === '/api/investors' ? service.investors(company) : service.analysis(company, lang))); }
       catch { return json(res, 503, { error: 'NEWS_UNAVAILABLE', message: 'Sursa de știri nu poate fi accesată momentan. Încearcă din nou mai târziu.' }); }

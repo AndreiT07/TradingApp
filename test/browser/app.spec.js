@@ -135,3 +135,25 @@ test('completed background signals appear automatically after an initial pending
   await expect(page.locator('#analysis-shortcut')).toContainText('Așteaptă');
   await expect(page.locator('#analysis .verdict')).toHaveText('Așteaptă');
 });
+
+test('crypto selection loads news, hides equity research, switches languages and returns to companies', async ({ page }) => {
+  const researchCalls = [];
+  page.on('request', request => {
+    if (/\/api\/(analysis|investors).*ticker=(BTC|ETH|SOL|CRYPTO)/.test(request.url())) researchCalls.push(request.url());
+  });
+  await page.route('**/api/news?*', route => route.fulfill({ json: data(new URL(route.request().url()).searchParams.get('ticker')) }));
+  await page.goto('/');
+  await page.getByRole('button', { name: /Bitcoin/ }).click();
+  await expect(page.getByRole('heading', { name: 'Bitcoin', exact: true })).toBeVisible();
+  await expect(page.locator('article').first()).toContainText('BTC');
+  await expect(page.locator('.research-section')).toBeHidden();
+  await expect(page.locator('#analysis-shortcut')).toBeHidden();
+  await expect(page.locator('#setup-notice')).toBeHidden();
+  await page.getByLabel('Limba interfeței').selectOption('en');
+  await expect(page.locator('#selected-sector')).toHaveText('Crypto · Global');
+  await expect(page.locator('.research-section')).toBeHidden();
+  await page.getByRole('button', { name: /Apple/ }).click();
+  await expect(page.locator('.research-section')).toBeVisible();
+  expect(researchCalls).toEqual([]);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
