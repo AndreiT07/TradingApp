@@ -10,7 +10,7 @@ const rules = [
 export function classify(title) {
   return rules.find(rule => rule.pattern.test(title)) ?? { category: 'Companie & piață', weight: 1 };
 }
-export function parseFeed(xml, company, now = Date.now()) {
+export function parseFeed(xml, company, now = Date.now(), { sourceName, descriptions = false } = {}) {
   if (xml.length > 2_000_000 || /<!DOCTYPE|<!ENTITY/i.test(xml)) throw new Error('Invalid feed');
   const parsed = parser.parse(xml);
   if (!parsed.rss?.channel) throw new Error('Invalid RSS');
@@ -24,13 +24,15 @@ export function parseFeed(xml, company, now = Date.now()) {
     let url;
     try { url = new URL(item.link); } catch { return []; }
     if (!title || !Number.isFinite(publishedAt) || publishedAt > now + 300_000 || !['https:', 'http:'].includes(url.protocol)) return [];
-    if (!company.keywords.some(word => title.toLowerCase().includes(word))) return [];
+    if (!(descriptions && company.type === 'crypto' && company.ticker === 'CRYPTO') && !company.keywords.some(word => new RegExp(`\\b${word}\\b`, 'i').test(title))) return [];
     const key = title.toLowerCase().replace(/\W/g, '');
     if (seen.has(key)) return [];
     seen.add(key);
     const { category, weight } = classify(title);
+    const description = descriptions && typeof item.description === 'string' ? item.description.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 6000) : '';
+    if (publishedAt < now - 7 * 86_400_000) return [];
     const ageHours = Math.max(0, (now - publishedAt) / 3_600_000);
-    return [{ id: createHash('sha256').update(url.href).digest('hex').slice(0, 16), title, source: String(source || 'Google News'), url: url.href,
-      publishedAt: new Date(publishedAt).toISOString(), category, score: Number((weight + 3 / (1 + ageHours / 12)).toFixed(3)) }];
+    return [{ id: createHash('sha256').update(url.href).digest('hex').slice(0, 16), title, source: String(source || sourceName || 'Google News'), url: url.href,
+      ...(description ? { description } : {}), publishedAt: new Date(publishedAt).toISOString(), category, score: Number((weight + 3 / (1 + ageHours / 12)).toFixed(3)) }];
   }).sort((a, b) => b.score - a.score).slice(0, 30);
 }

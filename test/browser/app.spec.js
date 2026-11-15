@@ -157,3 +157,14 @@ test('crypto selection loads news, hides equity research, switches languages and
   expect(researchCalls).toEqual([]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
+
+test('crypto source description remains visible without AI and untrusted markup is rendered as text', async ({ page }) => {
+  await page.route('**/api/news?*', route => route.fulfill({ json: { ...data('BTC'), articles: [{ ...data('BTC').articles[0], sourceExcerpt: 'Bitcoin source context <img src=x onerror=alert(1)>', summary: { status: 'not_configured' } }] } }));
+  await page.goto('/');
+  await page.getByRole('button', { name: /Bitcoin/ }).click();
+  await expect(page.getByText('Pe scurt · textul sursei')).toBeVisible();
+  await expect(page.getByText('Bitcoin source context <img src=x onerror=alert(1)>')).toBeVisible();
+  await expect(page.locator('article img')).toHaveCount(0);
+  await page.getByLabel('Limba interfeței').selectOption('en');
+  await expect(page.getByText('At a glance · source text')).toBeVisible();
+});

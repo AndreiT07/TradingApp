@@ -117,6 +117,6 @@ Aceste praguri sunt o euristică fără validare istorică, nu o strategie compl
 
 ## Știri crypto
 
-Secțiunea Crypto din bara laterală folosește Google News RSS fără chei API suplimentare, cu cache de cinci minute, surse și data publicării. Căutarea, filtrele și ordonarea funcționează și pentru crypto. Titlurile rămân în limba sursei; RSS nu oferă texte pentru rezumate AI. Analiza financiară și raportările SEC sunt afișate numai pentru companii.
+Secțiunea Crypto din bara laterală folosește CoinDesk RSS, cu Google News RSS ca rezervă, fără chei API suplimentare, cu cache de cinci minute, surse și data publicării. Căutarea, filtrele și ordonarea funcționează și pentru crypto. Descrierile CoinDesk sunt afișate imediat ca text al sursei. Worker-ul generează cel mult trei rezumate AI RO/EN pe activ/zi, dacă OpenAI este configurat, în plafonul global existent de 8 USD/lună. Generarea nu necesită Finnhub. Fără AI, descrierile rămân în limba sursei; rezerva Google News oferă numai titluri. Analiza financiară și raportările SEC sunt afișate numai pentru companii.
 
 `GET /api/crypto` listează activele; `/api/news?ticker=CRYPTO|BTC|ETH|SOL&lang=ro|en` returnează știrile. Endpoint-urile de analiză și investitori rămân limitate la companii.

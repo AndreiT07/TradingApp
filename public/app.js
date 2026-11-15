@@ -135,6 +135,7 @@ function renderFeed() {
     if (article.summary?.status === 'ready' && article.summary.text) {
       summary.append(element('span', 'summary-label', t('summary')), element('p', '', article.summary.text), element('small', '', state.demo ? t('example') : t('summaryBasis')));
     } else {
+      if (article.sourceExcerpt) summary.append(element('span', 'summary-label', t('sourceExcerpt')), element('p', '', article.sourceExcerpt), element('small', '', t('sourceExcerptBasis')));
       const key = { pending:'summaryPending', not_configured:'summaryConfig', budget_limited:'summaryBudget', no_text:'noText' }[article.summary?.status] ?? 'summaryError';
       summary.append(element('p', 'summary-missing', article.summary?.reason ? t(article.summary.reason) : t(key)));
     }
