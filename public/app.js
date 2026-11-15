@@ -26,17 +26,18 @@ function applyLanguage() {
   $('today').textContent = new Intl.DateTimeFormat(lang() === 'ro' ? 'ro-RO' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date());
   renderCompanies(); renderCompany();
 }
+const isCrypto = () => state.companies.find(c => c.ticker === state.ticker)?.type === 'crypto';
 function renderCompany() {
   const company = state.companies.find(c => c.ticker === state.ticker);
   if (!company) return;
   $('company-title').textContent = company.name; $('selected-ticker').textContent = company.ticker;
   $('selected-logo').textContent = company.symbol;
-  $('selected-sector').textContent = `${t(sectorKeys[company.sector])} · ${t('country')}`;
+  $('selected-sector').textContent = `${t(sectorKeys[company.sector])} · ${t(company.type === 'crypto' ? 'global' : 'country')}`;
 }
 function renderCompanies() {
   const query = $('company-search').value.trim().toLocaleLowerCase(lang());
   const filtered = state.companies.filter(c => `${c.name} ${c.ticker}`.toLocaleLowerCase(lang()).includes(query));
-  $('companies').replaceChildren();
+  $('companies').replaceChildren(); $('crypto-assets').replaceChildren();
   for (const company of filtered) {
     const button = element('button', `company-button${company.ticker === state.ticker ? ' selected' : ''}`);
     button.type = 'button'; button.setAttribute('aria-pressed', String(company.ticker === state.ticker));
@@ -44,7 +45,7 @@ function renderCompanies() {
     label.append(element('strong', '', company.name), element('small', '', company.ticker));
     button.append(logo, label);
     if (company.ticker === state.ticker) button.append(element('span', 'company-arrow', '↗'));
-    button.addEventListener('click', () => selectCompany(company.ticker)); $('companies').append(button);
+    button.addEventListener('click', () => selectCompany(company.ticker)); $(company.type === 'crypto' ? 'crypto-assets' : 'companies').append(button);
   }
   if (!filtered.length) $('companies').append(element('p', 'search-empty', t('noCompany')));
 }
@@ -79,6 +80,7 @@ async function loadNews() {
 async function loadResearch() {
   researchController?.abort(); const controller = researchController = new AbortController();
   state.investors = null; state.analysis = null; renderResearch();
+  if (isCrypto()) return;
   if (state.demo) {
     state.investors = { status: 'demo', funds: [], insiders: [] };
     state.analysis = { status: 'demo', verdict: 'insufficient', rationale: t('exampleRationale'), opportunities: [t('exampleOpportunity')], risks: [t('exampleRisk')] };
@@ -157,6 +159,9 @@ function statusMessage(data) {
   return t(!data ? 'loading' : ({ not_configured:'notConfigured', pending:'pending', unavailable:'sourceError', stale:'stale', budget_limited:'analysisBudget', demo:'example' }[data.status] ?? 'noAnalysis'));
 }
 function renderResearch() {
+  document.querySelector('.research-section').hidden = isCrypto();
+  $('analysis-shortcut').hidden = isCrypto();
+  if (isCrypto()) return;
   const investors = $('investors'), analysis = $('analysis'); investors.replaceChildren(); analysis.replaceChildren();
   const data = state.investors;
   if (!data || data.status !== 'ready') investors.append(element('p', 'panel-state', statusMessage(data)));
@@ -249,8 +254,10 @@ document.addEventListener('keydown', event => {
 });
 applyLanguage(); renderResearch();
 try {
-  const response = await fetch('/api/companies'); if (!response.ok) throw new Error('companies');
-  state.companies = await response.json(); $('company-count').textContent = state.companies.length; selectCompany(state.ticker);
+  const responses = await Promise.all([fetch('/api/companies'), fetch('/api/crypto')]);
+  if (responses.some(response => !response.ok)) throw new Error('companies');
+  const [companies, crypto] = await Promise.all(responses.map(response => response.json()));
+  state.companies = [...companies, ...crypto]; $('company-count').textContent = companies.length; $('crypto-count').textContent = crypto.length; selectCompany(state.ticker);
 } catch { state.error = 'companies'; renderFeed(); }
 
 // Read-only polling makes completed background work visible without invoking AI from the browser.

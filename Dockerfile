@@ -9,7 +9,7 @@ COPY --chown=node:node package.json package-lock.json ./
 RUN --mount=type=secret,id=proxy_ca \
     if [ -f /run/secrets/proxy_ca ]; then export NODE_EXTRA_CA_CERTS=/run/secrets/proxy_ca; fi; \
     npm ci --omit=dev --ignore-scripts --strict-ssl=true && npm cache clean --force
-COPY --chown=node:node companies.js news.js server.js ./
+COPY --chown=node:node companies.js crypto.js news.js server.js ./
 COPY --chown=node:node public ./public
 COPY --chown=node:node lib ./lib
 USER node
