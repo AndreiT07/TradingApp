@@ -38,6 +38,8 @@ Folosește Finnhub numai cu un plan care permite accesul la endpoint-urile respe
 
 AI este **dezactivat** până când există cheia și ambele prețuri pozitive `AI_INPUT_USD_PER_MILLION` / `AI_OUTPUT_USD_PER_MILLION`. Verifică prețurile oficiale curente pentru modelul ales (implicit `gpt-5-mini`) înainte de activare și la schimbarea lor. Sunt prețuri USD pentru UN MILION de tokeni; aplicația nu descarcă automat tarifele.
 
+Pentru rezumate prin Gemini, setează `AI_PROVIDER=gemini`, `AI_MODEL=gemini-3.5-flash-lite` și cheia Google în `AI_API_KEY`. Folosește un proiect Google AI Studio pe planul gratuit, cu facturarea dezactivată. Aplicația păstrează limita zilnică de încercări și respectă cota furnizorului. Gemini are nevoie de acces HTTPS la `generativelanguage.googleapis.com`.
+
 Pe VM, creează `/opt/tradingapp/runtime.env` pe baza exemplului, cu permisiuni `600`, deținut de utilizatorul care rulează Compose. Completează valorile securizat și aplică:
 
 ```sh
