@@ -120,9 +120,11 @@ function renderFeed() {
     const actions = state.error === 'companies' ? [[t('reload'), () => location.reload(), 'primary-button']] : [[t('retry'), loadNews, 'secondary-button'], [t('demo'), () => { state.demo = true; loadNews(); loadResearch(); }, 'primary-button']];
     $('feed').append(emptyState(t('unavailableTitle'), t(state.error === 'companies' ? 'companiesError' : 'newsError'), actions)); return;
   }
-  const articles = state.articles.filter(a => state.category === 'all' || a.category === state.category).sort((a, b) => state.sort === 'important' ? b.score - a.score : new Date(b.publishedAt) - new Date(a.publishedAt));
+  const headlines = state.articles.filter(a => state.category === 'all' || a.category === state.category).sort((a, b) => state.sort === 'important' ? b.score - a.score : new Date(b.publishedAt) - new Date(a.publishedAt));
+  const onlySummaries = $('news-view').value === 'summaries';
+  const articles = onlySummaries ? headlines.filter(a => a.summary?.status === 'ready' && a.summary.text).slice(0, 3) : headlines;
   $('news-status').textContent = `${articles.length} ${t(articles.length === 1 ? 'article' : 'articles')}${state.demo ? ' · DEMO' : ' · ' + t('lastWeek')}`;
-  if (!articles.length) { $('feed').append(emptyState(t('empty'), t(state.category === 'all' ? 'emptyCompany' : 'emptyCategory'))); return; }
+  if (!articles.length) { $('feed').append(emptyState(t('empty'), t(onlySummaries && headlines.length ? 'noSummaries' : state.category === 'all' ? 'emptyCompany' : 'emptyCategory'))); return; }
   const grid = element('div', 'news-grid');
   articles.forEach((article, index) => {
     const card = element('article', `article${index === 0 ? ' featured' : ''}`), meta = element('div', 'article-meta');
@@ -237,6 +239,7 @@ function renderResearch() {
 }
 $('company-search').addEventListener('input', renderCompanies);
 $('category').addEventListener('change', event => { state.category = event.target.value; renderFeed(); });
+$('news-view').addEventListener('change', renderFeed);
 $('refresh').addEventListener('click', () => { loadNews(); loadResearch(); });
 $('exit-demo').addEventListener('click', () => { state.demo = false; loadNews(); loadResearch(); });
 $('language').addEventListener('change', event => {

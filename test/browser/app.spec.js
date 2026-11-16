@@ -8,6 +8,9 @@ test('loads news, changes company, searches, sorts, and filters without overflow
   page.on('pageerror', e => errors.push(e.message));
   await page.route('**/api/news?*', route => route.fulfill({ json: data(new URL(route.request().url()).searchParams.get('ticker')) }));
   await page.goto('/');
+  await expect(page.locator('#news-view')).toHaveValue('summaries');
+  await expect(page.locator('article')).toHaveCount(0);
+  await page.locator('#news-view').selectOption('all');
   await expect(page.locator('article')).toHaveCount(2);
   await expect(page.locator('article').first()).toContainText('quarterly earnings');
   await page.getByRole('button', { name: 'Cele mai recente' }).click();
@@ -32,7 +35,7 @@ test('shows real failure, demo is opt-in and clearly labeled, can return to live
   await expect(page.locator('article')).toHaveCount(0);
   await page.getByRole('button', { name: 'Explorează demonstrația' }).click();
   await expect(page.locator('#demo-notice')).toBeVisible();
-  await expect(page.locator('article')).toHaveCount(5);
+  await expect(page.locator('article')).toHaveCount(3);
   await expect(page.locator('article a')).toHaveCount(0);
   await page.screenshot({ path: `test-results/demo-${test.info().project.name}.png`, fullPage: true });
   await page.getByRole('button', { name: 'Revino la știri live' }).click();
@@ -41,6 +44,7 @@ test('shows real failure, demo is opt-in and clearly labeled, can return to live
 test('treats untrusted titles as text and supports empty category', async ({ page }) => {
   await page.route('**/api/news?*', route => route.fulfill({ json: { ...data('AAPL'), articles: [{ ...data('AAPL').articles[0], title: '<img src=x onerror=alert(1)> Apple earnings' }] } }));
   await page.goto('/');
+  await page.locator('#news-view').selectOption('all');
   await expect(page.locator('article h3')).toHaveText('<img src=x onerror=alert(1)> Apple earnings');
   await expect(page.locator('article img')).toHaveCount(0);
   await page.getByLabel('Subiect', { exact: true }).selectOption('Reglementări');
@@ -86,6 +90,7 @@ test('shows sourced investor filings, amendment warnings and grounded company re
 test('missing summaries and credentials are explicit; demo switches language without live-looking claims', async ({ page }) => {
   await page.route('**/api/news?*',route=>route.fulfill({json:{...data('AAPL'),articles:[{...data('AAPL').articles[0],summary:{status:'no_text'}}]}}));
   await page.goto('/');
+  await page.locator('#news-view').selectOption('all');
   await expect(page.getByText('Rezumat indisponibil: sursa oferă doar titlul.')).toBeVisible();
   await expect(page.locator('#investors')).toContainText('Sursa nu este configurată încă pe server.');
   await expect(page.locator('#analysis .verdict')).toHaveText('Date insuficiente');
@@ -141,7 +146,11 @@ test('crypto selection loads news, hides equity research, switches languages and
   page.on('request', request => {
     if (/\/api\/(analysis|investors).*ticker=(BTC|ETH|SOL|CRYPTO)/.test(request.url())) researchCalls.push(request.url());
   });
-  await page.route('**/api/news?*', route => route.fulfill({ json: data(new URL(route.request().url()).searchParams.get('ticker')) }));
+  await page.route('**/api/news?*', route => {
+    const result = data(new URL(route.request().url()).searchParams.get('ticker'));
+    result.articles[0].summary = { status: 'ready', text: 'Market news summary.' };
+    return route.fulfill({ json: result });
+  });
   await page.goto('/');
   await page.getByRole('button', { name: /Bitcoin/ }).click();
   await expect(page.getByRole('heading', { name: 'Bitcoin', exact: true })).toBeVisible();
@@ -162,6 +171,7 @@ test('crypto source description remains visible without AI and untrusted markup 
   await page.route('**/api/news?*', route => route.fulfill({ json: { ...data('BTC'), articles: [{ ...data('BTC').articles[0], sourceExcerpt: 'Bitcoin source context <img src=x onerror=alert(1)>', summary: { status: 'not_configured' } }] } }));
   await page.goto('/');
   await page.getByRole('button', { name: /Bitcoin/ }).click();
+  await page.locator('#news-view').selectOption('all');
   await expect(page.getByText('Pe scurt · textul sursei')).toBeVisible();
   await expect(page.getByText('Bitcoin source context <img src=x onerror=alert(1)>')).toBeVisible();
   await expect(page.locator('article img')).toHaveCount(0);
