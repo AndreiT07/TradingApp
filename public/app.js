@@ -1,6 +1,6 @@
 import { t, lang, setLanguage, categoryKeys, sectorKeys } from './i18n.js';
 const $ = id => document.getElementById(id);
-const state = { companies: [], ticker: 'AAPL', articles: [], sort: 'important', category: 'all', demo: false, loading: false, error: null, fetchedAt: null, stale: false, setup: null, investors: null, analysis: null };
+const state = { companies: [], ticker: 'AAPL', articles: [], sort: 'recent', category: 'all', demo: false, loading: false, error: null, fetchedAt: null, stale: false, setup: null, investors: null, analysis: null };
 let requestController, researchController;
 const dateTime = value => new Intl.DateTimeFormat(lang() === 'ro' ? 'ro-RO' : 'en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
 const number = value => value == null ? '—' : new Intl.NumberFormat(lang(), { maximumFractionDigits: 2 }).format(value);

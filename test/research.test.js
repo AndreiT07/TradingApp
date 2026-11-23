@@ -69,6 +69,42 @@ test('normalizes provider news, excludes malformed URLs, duplicates and out-of-w
   const items=normalizeNews([article,article,{...article,headline:'unsafe',url:'javascript:alert(1)'},{...article,headline:'old',datetime:now/1000-8*86400}],companies[0],now);
   assert.equal(items.length,1); assert.equal(items[0].description,'Revenue rose.');
 });
+test('Nvidia releases appear alongside cached Finnhub news without an AI summary', async () => {
+  const store = new Store(':memory:');
+  const company = companies.find(company => company.ticker === 'NVDA');
+  const title = 'NVIDIA Board Reinstates Jensen Huang as CEO';
+  const url = 'https://nvidianews.nvidia.com/news/huang-reinstated';
+  const publishedAt = new Date();
+  const finnHubFetchedAt = new Date(publishedAt.getTime() - 60 * 60_000).toISOString();
+  store.put('news:NVDA', { fetchedAt: finnHubFetchedAt, articles: [
+    { id: 'duplicate', title, url: 'https://example.com/syndicated', provider: 'finnhub', publishedAt: publishedAt.toISOString() },
+    { id: 'other', title: 'NVIDIA earnings', url: 'https://example.com/earnings', provider: 'finnhub', publishedAt: finnHubFetchedAt },
+  ] }, finnHubFetchedAt);
+  let rssCalls = 0;
+  const service = new Research({
+    store,
+    env: { FINNHUB_API_KEY: 'test-only-key', DATA_PROVIDER_TERMS_ACCEPTED: 'true' },
+    call: async requested => {
+      assert.equal(requested.href, 'https://nvidianews.nvidia.com/cats/press_release.xml');
+      rssCalls++;
+      return { text: `<rss><channel><item><title>${title}</title><link>${url}</link><pubDate>${publishedAt.toUTCString()}</pubDate></item></channel></rss>` };
+    },
+  });
+  try {
+    const [ro, en] = await Promise.all([service.news(company), service.news(company, 'en')]);
+    assert.deepEqual(ro.articles.map(article => article.provider), ['nvidia_rss', 'finnhub']);
+    assert.equal(ro.articles[0].title, title);
+    assert.equal(ro.articles[0].url, url);
+    assert.equal(ro.articles[0].summary.status, 'no_text');
+    assert.equal(en.articles[0].source, 'NVIDIA Newsroom');
+    assert.ok(ro.fetchedAt > finnHubFetchedAt);
+    assert.equal(ro.stale, false);
+    await service.news(company);
+    assert.equal(rssCalls, 1);
+  } finally {
+    await service.stop();
+  }
+});
 test('financial evidence requires recent quotes, reporting dates and enough numeric metrics', () => {
   const now=Date.now(), quote={c:100,t:now/1000}, period=new Date(now-40*86400000).toISOString().slice(0,10);
   const financials={metric:{peTTM:20,revenueGrowthTTMYoy:5,epsGrowthTTMYoy:3},series:{quarterly:{eps:[{period}]}}};

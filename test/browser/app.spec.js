@@ -8,10 +8,13 @@ test('loads news, changes company, searches, sorts, and filters without overflow
   page.on('pageerror', e => errors.push(e.message));
   await page.route('**/api/news?*', route => route.fulfill({ json: data(new URL(route.request().url()).searchParams.get('ticker')) }));
   await page.goto('/');
-  await expect(page.locator('#news-view')).toHaveValue('summaries');
+  await expect(page.locator('#news-view')).toHaveValue('all');
+  await expect(page.locator('article').first()).toContainText('product launch');
+  await page.locator('#news-view').selectOption('summaries');
   await expect(page.locator('article')).toHaveCount(0);
   await page.locator('#news-view').selectOption('all');
   await expect(page.locator('article')).toHaveCount(2);
+  await page.getByRole('button', { name: 'Cele mai importante' }).click();
   await expect(page.locator('article').first()).toContainText('quarterly earnings');
   await page.getByRole('button', { name: 'Cele mai recente' }).click();
   await expect(page.locator('article').first()).toContainText('product launch');
@@ -35,7 +38,7 @@ test('shows real failure, demo is opt-in and clearly labeled, can return to live
   await expect(page.locator('article')).toHaveCount(0);
   await page.getByRole('button', { name: 'Explorează demonstrația' }).click();
   await expect(page.locator('#demo-notice')).toBeVisible();
-  await expect(page.locator('article')).toHaveCount(3);
+  await expect(page.locator('article')).toHaveCount(5);
   await expect(page.locator('article a')).toHaveCount(0);
   await page.screenshot({ path: `test-results/demo-${test.info().project.name}.png`, fullPage: true });
   await page.getByRole('button', { name: 'Revino la știri live' }).click();
