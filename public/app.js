@@ -1,4 +1,6 @@
 import { t, lang, setLanguage, categoryKeys, sectorKeys } from './i18n.js';
+import { initChart, showChart, updateChartEvents } from './charts.js';
+import { addAlerts, alertTopics, changeAlertTopic, readAlerts, toggleFavorite, watchState } from './watchlist.js';
 const $ = id => document.getElementById(id);
 const state = { companies: [], ticker: 'AAPL', articles: [], sort: 'important', category: 'all', demo: false, loading: false, error: null, fetchedAt: null, stale: false, setup: null, investors: null, analysis: null };
 let requestController, researchController;
@@ -24,7 +26,7 @@ function applyLanguage() {
     else { option.value = option.dataset.original ?? option.value; option.dataset.original = option.value; option.textContent = t(categoryKeys[option.value]); }
   });
   $('today').textContent = new Intl.DateTimeFormat(lang() === 'ro' ? 'ro-RO' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date());
-  renderCompanies(); renderCompany();
+  renderCompanies(); renderCompany(); renderAlerts();
 }
 const isCrypto = () => state.companies.find(c => c.ticker === state.ticker)?.type === 'crypto';
 function renderCompany() {
@@ -33,11 +35,15 @@ function renderCompany() {
   $('company-title').textContent = company.name; $('selected-ticker').textContent = company.ticker;
   $('selected-logo').textContent = company.symbol;
   $('selected-sector').textContent = `${t(sectorKeys[company.sector])} · ${t(company.type === 'crypto' ? 'global' : 'country')}`;
+  const favorite = $('toggle-favorite');
+  favorite.disabled = false;
+  favorite.setAttribute('aria-pressed', String(Object.hasOwn(watchState().favorites, state.ticker)));
 }
 function renderCompanies() {
   const query = $('company-search').value.trim().toLocaleLowerCase(lang());
   const filtered = state.companies.filter(c => `${c.name} ${c.ticker}`.toLocaleLowerCase(lang()).includes(query));
-  $('companies').replaceChildren(); $('crypto-assets').replaceChildren();
+  $('companies').replaceChildren(); $('crypto-assets').replaceChildren(); $('favorite-assets').replaceChildren();
+  const favorites = watchState().favorites;
   for (const company of filtered) {
     const button = element('button', `company-button${company.ticker === state.ticker ? ' selected' : ''}`);
     button.type = 'button'; button.setAttribute('aria-pressed', String(company.ticker === state.ticker));
@@ -46,12 +52,18 @@ function renderCompanies() {
     button.append(logo, label);
     if (company.ticker === state.ticker) button.append(element('span', 'company-arrow', '↗'));
     button.addEventListener('click', () => selectCompany(company.ticker)); $(company.type === 'crypto' ? 'crypto-assets' : 'companies').append(button);
+    if (Object.hasOwn(favorites, company.ticker)) {
+      const shortcut = element('button', 'favorite-shortcut', company.name);
+      shortcut.type = 'button'; shortcut.addEventListener('click', () => selectCompany(company.ticker));
+      $('favorite-assets').append(shortcut);
+    }
   }
+  $('favorites-section').hidden = !$('favorite-assets').children.length;
   if (!filtered.length) $('companies').append(element('p', 'search-empty', t('noCompany')));
 }
 function selectCompany(ticker) {
   state.ticker = ticker; state.category = 'all'; $('category').value = 'all';
-  renderCompany(); renderCompanies(); loadNews(); loadResearch();
+  renderCompany(); renderCompanies(); showChart(state.demo ? null : ticker); loadNews(); loadResearch();
 }
 function makeDemo() {
   const name = state.companies.find(c => c.ticker === state.ticker)?.name ?? state.ticker;
@@ -68,12 +80,13 @@ function makeDemo() {
 async function loadNews() {
   requestController?.abort(); const controller = requestController = new AbortController();
   state.loading = true; state.error = null; state.articles = []; state.fetchedAt = null; state.stale = false; renderFeed();
-  if (state.demo) { state.articles = makeDemo(); state.loading = false; renderFeed(); return; }
+  if (state.demo) { showChart(null); state.articles = makeDemo(); state.loading = false; renderFeed(); return; }
   try {
     const response = await fetch(`/api/news?ticker=${encodeURIComponent(state.ticker)}&lang=${lang()}`, { signal: controller.signal });
     if (!response.ok) throw new Error('news');
     const data = await response.json(); if (controller !== requestController) return;
     state.articles = data.articles; state.fetchedAt = data.fetchedAt; state.stale = data.stale; state.setup = data.setup;
+    addAlerts(state.ticker, state.articles); renderAlerts(false); updateChartEvents(state.ticker, state.articles);
   } catch (error) { if (error.name === 'AbortError') return; state.error = 'news'; }
   finally { if (controller === requestController) { state.loading = false; renderFeed(); } }
 }
@@ -133,6 +146,7 @@ function renderFeed() {
   articles.forEach((article, index) => {
     const card = element('article', `article${index === 0 ? ' featured' : ''}`), meta = element('div', 'article-meta');
     meta.append(element('span', '', t(categoryKeys[article.category] ?? 'market').toLocaleUpperCase(lang())));
+    if (!state.demo) meta.append(element('span', 'source-kind', t(`source_${article.type ?? 'news'}`)));
     if (index === 0 && state.sort === 'important') meta.append(element('span', 'priority-label', t('focus')));
     const heading = element('h3');
     if (article.url && /^https?:\/\//.test(article.url)) { const link = element('a', '', article.title); link.href = article.url; link.target = '_blank'; link.rel = 'noopener noreferrer'; heading.append(link); }
@@ -142,6 +156,16 @@ function renderFeed() {
       const excerpt = element('div', 'article-excerpt');
       excerpt.append(element('span', 'excerpt-label', t('sourceExcerpt')), element('p', '', article.sourceExcerpt));
       card.append(excerpt);
+    }
+    if (article.coverage?.length) {
+      const coverage = element('details', 'related-coverage');
+      coverage.append(element('summary', '', `${t('relatedSources')} (${article.coverage.length})`));
+      const sources = element('ul');
+      for (const item of article.coverage) {
+        const entry = element('li');
+        entry.append(link(item.url, item.source || item.title)); sources.append(entry);
+      }
+      coverage.append(sources); card.append(coverage);
     }
     const bottom = element('div', 'article-bottom');
     bottom.append(element('span', 'source-dot'), element('span', '', article.source), element('span', '', '·'));
@@ -155,6 +179,40 @@ function renderFeed() {
 function link(url, text = t('source')) {
   if (!url || !/^https?:\/\//.test(url)) return element('span', '', '—');
   const anchor = element('a', 'source-link', text); anchor.href = url; anchor.target = '_blank'; anchor.rel = 'noopener noreferrer'; return anchor;
+}
+function renderAlerts(renderOptions = true) {
+  const watch = watchState();
+  if (renderOptions) {
+    $('alert-options').replaceChildren();
+    for (const topic of alertTopics) {
+      const label = element('label'), box = element('input');
+      box.type = 'checkbox'; box.checked = Object.hasOwn(watch.topics, topic);
+      box.addEventListener('change', () => { changeAlertTopic(topic, box.checked); });
+      label.append(box, element('span', '', t(`alert_${topic}`)));
+      $('alert-options').append(label);
+    }
+  }
+  const pending = watch.alerts.filter(alert => alert.receivedAt > watch.viewedAt).length;
+  $('alert-count').hidden = !pending;
+  $('alert-count').textContent = pending;
+  $('alert-list').replaceChildren();
+  if (!watch.alerts.length) $('alert-list').append(element('li', 'panel-note', t('alertsEmpty')));
+  for (const alert of watch.alerts) {
+    const item = element('li');
+    item.append(element('span', 'panel-note', `${alert.ticker} · ${t(`alert_${alert.topic}`)} · ${dateTime(alert.eventAt)} `), link(alert.url, alert.title));
+    $('alert-list').append(item);
+  }
+}
+async function refreshFavoriteAlerts() {
+  if (state.demo || document.hidden) return;
+  const watch = watchState();
+  if (!Object.keys(watch.topics).length) return;
+  const favorites = state.companies.filter(company => company.ticker !== state.ticker && Object.hasOwn(watch.favorites, company.ticker));
+  await Promise.allSettled(favorites.map(async ({ ticker }) => {
+    const response = await fetch(`/api/news?ticker=${encodeURIComponent(ticker)}&lang=${lang()}`, { signal: AbortSignal.timeout(30000) });
+    if (response.ok) addAlerts(ticker, (await response.json()).articles);
+  }));
+  renderAlerts(false);
 }
 function statusMessage(data) {
   if (data?.status === 'not_configured' && data.missing?.length) return `${t(data.engine === 'rules-v1' ? 'signalSetupIntro' : 'setupIntro')} ${t('setupFile')}: ${data.missing.join(', ')}.`;
@@ -239,11 +297,18 @@ function renderResearch() {
 }
 $('company-search').addEventListener('input', renderCompanies);
 $('category').addEventListener('change', event => { state.category = event.target.value; renderFeed(); });
-$('refresh').addEventListener('click', () => { loadNews(); loadResearch(); });
-$('exit-demo').addEventListener('click', () => { state.demo = false; loadNews(); loadResearch(); });
+$('refresh').addEventListener('click', () => { if (!state.demo) showChart(state.ticker, state.articles); loadNews(); loadResearch(); });
+$('exit-demo').addEventListener('click', () => { state.demo = false; showChart(state.ticker); loadNews(); loadResearch(); });
+$('toggle-favorite').addEventListener('click', () => { toggleFavorite(state.ticker); renderCompany(); renderCompanies(); });
+$('alerts-panel').addEventListener('toggle', event => {
+  if (event.target.open) { readAlerts(); renderAlerts(false); }
+});
+window.addEventListener('storage', event => {
+  if (event.key === 'tradingapp.watchlist') { renderCompanies(); renderCompany(); renderAlerts(); }
+});
 $('language').addEventListener('change', event => {
   setLanguage(event.target.value); applyLanguage();
-  if (state.error === 'companies') { renderFeed(); renderResearch(); } else { loadNews(); loadResearch(); }
+  if (state.error === 'companies') { renderFeed(); renderResearch(); } else { showChart(state.demo ? null : state.ticker, state.articles); loadNews(); loadResearch(); }
 });
 for (const [id, sort] of [['sort-important', 'important'], ['sort-recent', 'recent']]) {
   $(id).addEventListener('click', () => {
@@ -255,12 +320,13 @@ for (const [id, sort] of [['sort-important', 'important'], ['sort-recent', 'rece
 document.addEventListener('keydown', event => {
   if (event.key === '/' && !['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement.tagName)) { event.preventDefault(); $('company-search').focus(); }
 });
-applyLanguage(); renderResearch();
+initChart(); applyLanguage(); renderResearch();
 try {
   const responses = await Promise.all([fetch('/api/companies'), fetch('/api/crypto')]);
   if (responses.some(response => !response.ok)) throw new Error('companies');
   const [companies, crypto] = await Promise.all(responses.map(response => response.json()));
   state.companies = [...companies, ...crypto]; $('company-count').textContent = companies.length; $('crypto-count').textContent = crypto.length; selectCompany(state.ticker);
+  refreshFavoriteAlerts();
 } catch { state.error = 'companies'; renderFeed(); }
 
 setInterval(() => {
@@ -269,5 +335,7 @@ setInterval(() => {
 }, 15000);
 
 setInterval(() => {
-  if (state.companies.length && !document.hidden && !state.demo && !state.loading) loadNews();
+  if (state.companies.length && !document.hidden && !state.demo && !state.loading) {
+    showChart(state.ticker, state.articles); loadNews(); refreshFavoriteAlerts();
+  }
 }, 3_600_000);

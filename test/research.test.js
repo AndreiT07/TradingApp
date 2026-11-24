@@ -197,19 +197,22 @@ test('the worker refreshes Finnhub and the official RSS each hour and financial 
   } });
   try {
     await service.tick();
-    assert.deepEqual([equity, crypto, releases, financial], [10, 1, 1, 20]);
-    const newsAttempts = ['attempt:news:AAPL', 'attempt:crypto:finnhub', 'attempt:press-releases:v2:NVDA'];
+    assert.deepEqual([equity, crypto, releases, financial], [10, 1, 1, 33]);
+    assert.equal(service.prices(companies[0], '1d').points[0].price, 100);
+    assert.equal(service.prices(companies[0], '1d').events.length, 1);
+    const newsAttempts = ['attempt:news:AAPL', 'attempt:crypto:finnhub', 'attempt:press-releases:v2:NVDA', 'attempt:prices:AAPL'];
     for (const name of newsAttempts) {
       store.put(name, { status: 'complete' }, new Date(now - 30 * 60_000).toISOString());
     }
     await service.tick();
-    assert.deepEqual([equity, crypto, releases, financial], [10, 1, 1, 20]);
+    assert.deepEqual([equity, crypto, releases, financial], [10, 1, 1, 33]);
 
     for (const name of newsAttempts) {
       store.put(name, { status: 'complete' }, new Date(now - 61 * 60_000).toISOString());
     }
     await service.tick();
-    assert.deepEqual([equity, crypto, releases, financial], [11, 2, 2, 20]);
+    assert.deepEqual([equity, crypto, releases, financial], [11, 2, 2, 34]);
+    assert.equal(service.prices(companies[0], '1d').points.length, 1);
     assert.equal(service.analysis(companies[0], 'en').status, 'ready');
   } finally { await service.stop(); }
 });

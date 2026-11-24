@@ -1,4 +1,7 @@
 import { test, expect } from '@playwright/test';
+test.beforeEach(async ({ page }) => {
+  await page.route('https://www.tradingview-widget.com/**', route => route.fulfill({ body: 'Test chart', contentType: 'text/html' }));
+});
 const data = ticker => ({ ticker, fetchedAt: '2026-11-09T12:00:00Z', stale: false, articles: [
   { id: 'earnings', title: `${ticker} quarterly earnings outlook`, category: 'Rezultate financiare', source: 'Reuters', publishedAt: '2026-11-09T09:00:00Z', url: 'https://example.com/earnings', score: 9 },
   { id: 'products', title: `${ticker} product launch`, category: 'Produse & inovație', source: 'Associated Press', publishedAt: '2026-11-09T11:00:00Z', url: 'https://example.com/product', score: 5 },
@@ -182,4 +185,45 @@ test('crypto source description is shown and untrusted markup is rendered as tex
   await expect(page.locator('article img')).toHaveCount(0);
   await page.getByLabel('Limba interfeței').selectOption('en');
   await expect(page.getByText('Source excerpt')).toBeVisible();
+});
+
+test('crypto favorites, alerts, grouped sources and chart event markers work together', async ({ page }) => {
+  await page.clock.install();
+  let news = [];
+  await page.route('**/api/news?*', route => {
+    const ticker = new URL(route.request().url()).searchParams.get('ticker');
+    return route.fulfill({ json: ticker === 'BTC' ? { ...data(ticker), articles: news } : data(ticker) });
+  });
+  await page.route('**/api/prices?*', route => {
+    const url = new URL(route.request().url()), ticker = url.searchParams.get('ticker'), period = url.searchParams.get('period');
+    const to = Date.now() + 10_000, from = to - 86_400_000;
+    const points = ticker === 'BTC' && period === '1d' ? [{ at: to - 3_600_000, price: 80000 }, { at: to - 1800_000, price: 80500 }] : [];
+    return route.fulfill({ json: { ticker, period, from, to, points, symbol: ticker === 'BTC' ? 'COINBASE:BTCUSD' : 'NASDAQ:AAPL', events: [] } });
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: /Bitcoin/ }).click();
+  await expect(page.locator('#price-canvas')).toBeVisible();
+  await page.getByRole('button', { name: 'Favorit', exact: true }).click();
+  await expect(page.locator('#favorite-assets').getByRole('button', { name: 'Bitcoin' })).toBeVisible();
+  await page.locator('#alerts-panel summary').click();
+  await page.getByRole('checkbox', { name: 'Actualizări de rețea' }).check();
+  await page.locator('#alerts-panel summary').click();
+  await page.clock.fastForward(2000);
+  const eventAt = await page.evaluate(() => new Date().toISOString());
+  news = [{ ...data('BTC').articles[0], title: 'Bitcoin network upgrade', publishedAt: eventAt, eventAt,
+    eventId: 'btc-upgrade', topic: 'network', type: 'official', coverage: [{ source: 'CoinDesk', url: 'https://example.com/coverage' }] }];
+  await page.getByRole('button', { name: 'Actualizează', exact: true }).click();
+  await expect(page.locator('#alert-count')).toHaveText('1');
+  await expect(page.locator('article')).toHaveCount(1);
+  await expect(page.getByText('Comunicat oficial', { exact: true })).toBeVisible();
+  await page.getByText('Alte surse (1)', { exact: true }).click();
+  await expect(page.getByRole('link', { name: 'CoinDesk' })).toHaveAttribute('href', 'https://example.com/coverage');
+  await expect(page.locator('#event-axis a').first()).toHaveAttribute('href', 'https://example.com/earnings');
+  await page.getByRole('button', { name: '1 lună' }).click();
+  await expect(page.locator('#price-widget iframe')).toHaveAttribute('src', /COINBASE%3ABTCUSD%7C1M/);
+  await page.locator('#alerts-panel summary').click();
+  await expect(page.locator('#alert-list')).toContainText('Bitcoin network upgrade');
+  await page.reload();
+  await expect(page.locator('#favorite-assets').getByRole('button', { name: 'Bitcoin' })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });

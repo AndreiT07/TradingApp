@@ -78,11 +78,11 @@ export function parseFeed(xml, company, now = Date.now(), { sourceName, descript
     let url;
     try { url = new URL(item.link); } catch { return []; }
     if (!title || !isRecentNews(publishedAt, now) || !['https:', 'http:'].includes(url.protocol) || !isRelevantHeadline(title, company)) return [];
-    const key = headlineKey(title);
+    const key = `${headlineKey(title)}:${source || sourceName || 'Google News'}`;
     if (seen.has(key)) return [];
     seen.add(key);
     const description = descriptions && typeof item.description === 'string' ? item.description.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 6000) : '';
     return [{ id: createHash('sha256').update(url.href).digest('hex').slice(0, 16), title, source: String(source || sourceName || 'Google News'), url: url.href,
       ...(description ? { description } : {}), publishedAt: new Date(publishedAt).toISOString(), ...rankNews(title, publishedAt, now) }];
-  }).sort((a, b) => b.score - a.score).slice(0, 30);
+  }).sort((a, b) => b.score - a.score).slice(0, 60);
 }

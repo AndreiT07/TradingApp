@@ -17,6 +17,12 @@ test('HTTP app serves UI, company data, health, rejects unknown tickers and path
     assert.equal((await (await fetch(`${url}/api/health`)).json()).status, 'ok');
     assert.equal((await fetch(`${url}/api/news?ticker=UNKNOWN`)).status, 400);
     assert.equal((await fetch(`${url}/api/news?lang=fr`)).status, 400);
+    assert.equal((await fetch(`${url}/api/prices?period=constructor`)).status, 400);
+    assert.equal((await fetch(`${url}/api/prices?ticker=UNKNOWN`)).status, 400);
+    const prices = await (await fetch(`${url}/api/prices?ticker=SOL&period=1w`)).json();
+    assert.equal(prices.symbol, 'COINBASE:SOLUSD');
+    assert.equal(prices.to - prices.from, 7 * 86_400_000);
+    assert.ok(Array.isArray(prices.points) && Array.isArray(prices.events));
     assert.equal((await (await fetch(`${url}/api/analysis?lang=en`)).json()).verdict, 'insufficient');
     assert.equal((await (await fetch(`${url}/api/investors`)).json()).status, 'not_configured');
     assert.equal((await fetch(`${url}/.env`)).status, 404);

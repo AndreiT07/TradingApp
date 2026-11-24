@@ -18,6 +18,9 @@ Fără chei API, știrile continuă prin Google News RSS, iar secțiunile neconf
 - Selector RO/EN sus; preferința se păstrează în browser. Titlurile se traduc când există o generare validă; altfel sunt marcate ca fiind în limba sursei.
 - Căutare după nume/simbol (`/` pentru focalizare), ordonare și filtre pe subiect.
 - Titluri și fragmente din descrierile surselor, în limba originală. Fiecare listă afișează maximum zece știri relevante din ultimele 24 de ore, clasate după subiect și recență.
+- Articolele despre același eveniment sunt grupate într-un card cu surse secundare. Clasarea include tipul sursei și importanța evenimentului.
+- Grafice pe 1 zi, 1 săptămână și 1 lună, cu linkuri către evenimente pe axa timpului. Serverul păstrează până la 30 de zile de cotații Finnhub înregistrate orar. Graficul încorporat TradingView oferă istoricul în intervalele pentru care aplicația încă nu are suficiente cotații și afișează capitalizarea totală pentru secțiunea Crypto.
+- Favoritele și tipurile de alerte sunt salvate în browser. Alertele noi sunt afișate în aplicație când aceasta este deschisă.
 - Fonduri urmărite: Berkshire Hathaway, Pershing Square și Bridgewater, prin raportări SEC 13F. Comparăm două perioade; ajustăm split-urile când datele sunt disponibile. Fără ajustări verificate afișăm numai deținerile brute și nu deducem direcția schimbării. Modificările de dețineri nu sunt tranzacții observate în timp real; alte operațiuni corporative pot necesita verificare manuală.
 - Insideri: până la 12 raportări recente Form 4 / 4-A pentru fiecare companie. Codurile P/S sunt distincte de acordări, exercitări și alte operațiuni. Raportările rectificative sunt marcate, fără însumarea netă a originalelor și rectificărilor. Instrumentele derivate au un contor separat.
 - Semnal „Cumpără / Așteaptă / Evită cumpărarea”, orizont 6–12 luni, calculat prin reguli transparente. Afișează indicatorii, punctele, pragurile și sursa. Nu folosește portofoliul personal și nu execută tranzacții. Când datele sunt insuficiente sau vechi, verdictul devine „Date insuficiente”.
@@ -64,6 +67,7 @@ Toate endpoint-urile sunt GET. `ticker` este limitat la universul din `companies
 
 - `/api/companies`: lista companiilor.
 - `/api/news?ticker=AAPL&lang=ro`: cel mult zece articole, cu titlu original și câmpul `sourceExcerpt` când sursa furnizează o descriere.
+- `/api/prices?ticker=BTC&period=1d`: cotații înregistrate, evenimente arhivate și simbolul pentru graficul încorporat. Intervale acceptate: `1d`, `1w`, `1m`.
 - `/api/investors?ticker=AAPL&lang=ro`: date brute cu coduri stabile, fonduri, insideri, linkuri și date de raportare; etichetele sunt traduse în browser.
 - `/api/analysis?ticker=AAPL&lang=ro`: `buyDecision=buy|wait|avoid|insufficient`, `engine=rules-v1`, scor, criterii, explicații localizate, surse și timestamp-uri. Câmpul `verdict=buy|hold|sell|insufficient` este păstrat pentru compatibilitate; `sell` din acest filtru înseamnă evitarea unei noi achiziții, nu un ordin de vânzare. Fără date configurate răspunde 200 cu starea explicită, nu cu un verdict inventat.
 - `/api/health`: numai starea serverului; nu verifică accesul la furnizori.

@@ -10,6 +10,10 @@
     <div class="sidebar-divider"></div>
     <div class="list-heading"><span data-i18n="companies">COMPANII URMĂRITE</span><span id="company-count">10</span></div>
     <label class="search"><span aria-hidden="true">⌕</span><input id="company-search" type="search" placeholder="Caută nume sau simbol" aria-label="Caută o companie" autocomplete="off"><kbd>/</kbd></label>
+    <section id="favorites-section" hidden aria-labelledby="favorites-title">
+      <div class="list-heading"><span id="favorites-title" data-i18n="favorites">Favorite</span></div>
+      <div id="favorite-assets" class="company-list"></div>
+    </section>
     <div id="companies" class="company-list" aria-label="Companii"></div>
     <div class="list-heading"><span data-i18n="crypto">Crypto</span><span id="crypto-count">4</span></div>
     <div id="crypto-assets" class="company-list" aria-label="Crypto"></div>
@@ -21,8 +25,39 @@
       <div class="page-heading"><div><div class="eyebrow"><span></span> MARKET INTELLIGENCE</div><h1><span data-i18n="hero">Piața se mișcă.</span><br><span data-i18n="hero2">Rămâi cu un pas înainte.</span></h1><p data-i18n="intro">Știrile care contează, despre companiile pe care le urmărești.</p></div><div class="today"><span id="today"></span><span class="today-sub" data-i18n="perspective">Perspectivă globală. Focus clar.</span></div></div>
       <div class="context-strip"><span class="strip-icon">◎</span><span data-i18n="context">O perspectivă mai bună începe cu informația potrivită.</span><span class="strip-end" data-i18n="sources">10 companii · Surse multiple</span></div>
       <section class="news-section" aria-labelledby="company-title">
-        <div class="company-header"><div class="company-identity"><span id="selected-logo" class="selected-logo">a</span><div><div class="company-title-row"><h2 id="company-title">Apple</h2><span id="selected-ticker" class="ticker">AAPL</span></div><p id="selected-sector">Tehnologie · Statele Unite</p></div></div><button id="refresh" class="refresh" type="button"><span aria-hidden="true">↻</span> <span data-i18n="refresh">Actualizează</span></button></div>
+        <div class="company-header">
+          <div class="company-identity"><span id="selected-logo" class="selected-logo">a</span><div><div class="company-title-row"><h2 id="company-title">Apple</h2><span id="selected-ticker" class="ticker">AAPL</span></div><p id="selected-sector">Tehnologie · Statele Unite</p></div></div>
+          <div class="company-actions">
+            <button id="toggle-favorite" class="refresh" type="button" aria-pressed="false" disabled><span aria-hidden="true">☆</span> <span data-i18n="favorite">Favorit</span></button>
+            <button id="refresh" class="refresh" type="button"><span aria-hidden="true">↻</span> <span data-i18n="refresh">Actualizează</span></button>
+          </div>
+        </div>
         <a id="analysis-shortcut" class="analysis-shortcut" href="#analysis-title"></a>
+        <details id="alerts-panel" class="alerts-panel">
+          <summary><span data-i18n="alerts">Alerte</span> <span id="alert-count" class="alert-count" hidden></span></summary>
+          <p class="panel-note" data-i18n="alertsHelp"></p>
+          <fieldset id="alert-topics"><legend data-i18n="alertTopics">Tipuri de evenimente</legend><div id="alert-options"></div></fieldset>
+          <ul id="alert-list" aria-live="polite"></ul>
+        </details>
+        <section id="chart-panel" class="chart-panel" aria-labelledby="chart-title" hidden>
+          <div class="chart-header">
+            <div><h3 id="chart-title" data-i18n="priceChart">Grafic de preț</h3><p id="chart-status" class="panel-note" aria-live="polite"></p></div>
+            <div class="chart-periods">
+              <button type="button" data-period="1d" data-i18n="oneDay" aria-pressed="true">1 zi</button>
+              <button type="button" data-period="1w" data-i18n="oneWeek" aria-pressed="false">1 săpt.</button>
+              <button type="button" data-period="1m" data-i18n="oneMonth" aria-pressed="false">1 lună</button>
+            </div>
+          </div>
+          <canvas id="price-canvas" role="img" aria-labelledby="chart-title chart-status" hidden></canvas>
+          <div id="price-widget" hidden></div>
+          <a id="tradingview-credit" target="_blank" rel="noopener noreferrer" hidden>TradingView ↗</a>
+          <div class="chart-news">
+            <h4 data-i18n="newsTimeline">Evenimente pe axa timpului</h4>
+            <div id="event-axis" hidden></div>
+            <p id="chart-empty-events" class="panel-note" data-i18n="chartNoEvents" hidden></p>
+            <ul id="chart-events"></ul>
+          </div>
+        </section>
         <div class="news-toolbar"><div class="tabs" aria-label="Ordonare știri"><button class="tab active" id="sort-important" type="button" aria-pressed="true" data-i18n="important">Cele mai importante</button><button class="tab" id="sort-recent" type="button" aria-pressed="false" data-i18n="recent">Cele mai recente</button></div><span id="news-status" class="news-status">Se încarcă…</span></div>
         <div class="filter-row"><label for="category" data-i18n="subject">Subiect</label><select id="category"><option value="all">Toate subiectele</option><option>Rezultate financiare</option><option>Reglementări</option><option>Tranzacții &amp; strategie</option><option>Produse &amp; inovație</option><option>Companie &amp; piață</option></select><span data-i18n="priority" class="ranking-info" title="Prioritate după cuvinte-cheie din titlu și recență; nu este o recomandare de investiții.">ⓘ Prioritate după subiect și recență</span></div>
         <div id="demo-notice" class="demo-notice" hidden><span data-i18n="demoNotice"></span><button id="exit-demo" type="button" data-i18n="exitDemo">Revino la știri live</button></div>
