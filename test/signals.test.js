@@ -35,17 +35,16 @@ test('explanations preserve numbers and show the same rules in both languages',(
   assert.equal(ro.criteria[0].value,en.criteria[0].value);
   assert.match(en.methodology,/score ≥\+2/);
 });
-test('a live-data-only configuration produces a signal without any AI calls',async()=>{
-  const store=new Store(':memory:');let aiCalls=0;
+test('a live-data-only configuration produces a signal from Finnhub data',async()=>{
+  const store=new Store(':memory:');
   const env={FINNHUB_API_KEY:'test-key',DATA_PROVIDER_TERMS_ACCEPTED:'true'};
   const facts=financials();
-  const service=new Research({store,env,ai:{enabled:false,generate:async()=>{aiCalls++;throw new Error('AI must not be needed');}},call:async url=>({json:()=>new URL(url).pathname.endsWith('/quote')?{c:facts.price,t:now/1000}:{metric:facts.metrics,series:{quarterly:{eps:[{period:facts.reportingPeriod}]}}}})});
+  const service=new Research({store,env,call:async url=>({json:()=>new URL(url).pathname.endsWith('/quote')?{c:facts.price,t:now/1000}:{metric:facts.metrics,series:{quarterly:{eps:[{period:facts.reportingPeriod}]}}}})});
   try{
     await service.refreshAnalysis(companies[0]);
     const ro=service.analysis(companies[0],'ro'),en=service.analysis(companies[0],'en');
     assert.equal(ro.buyDecision,'buy');assert.equal(ro.engine,'rules-v1');assert.deepEqual(ro.missing,[]);
     assert.equal(en.buyDecision,'buy');assert.match(ro.rationale,/achiziții/);assert.match(en.rationale,/purchase/);
-    assert.equal(aiCalls,0);
   }finally{await service.stop();}
 });
 test('old AI records can serve a new signal from dated financial evidence without regenerating AI',async()=>{

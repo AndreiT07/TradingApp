@@ -8,14 +8,10 @@ test('loads news, changes company, searches, sorts, and filters without overflow
   page.on('pageerror', e => errors.push(e.message));
   await page.route('**/api/news?*', route => route.fulfill({ json: data(new URL(route.request().url()).searchParams.get('ticker')) }));
   await page.goto('/');
-  await expect(page.locator('#news-view')).toHaveValue('all');
-  await expect(page.locator('article').first()).toContainText('product launch');
-  await page.locator('#news-view').selectOption('summaries');
-  await expect(page.locator('article')).toHaveCount(0);
-  await page.locator('#news-view').selectOption('all');
   await expect(page.locator('article')).toHaveCount(2);
-  await page.getByRole('button', { name: 'Cele mai importante' }).click();
+  await expect(page.getByRole('button', { name: 'Cele mai importante' })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('article').first()).toContainText('quarterly earnings');
+  await expect(page.locator('#news-status')).toContainText('Ultimele 24 de ore');
   await page.getByRole('button', { name: 'Cele mai recente' }).click();
   await expect(page.locator('article').first()).toContainText('product launch');
   await page.getByLabel('Subiect', { exact: true }).selectOption('Rezultate financiare');
@@ -47,7 +43,6 @@ test('shows real failure, demo is opt-in and clearly labeled, can return to live
 test('treats untrusted titles as text and supports empty category', async ({ page }) => {
   await page.route('**/api/news?*', route => route.fulfill({ json: { ...data('AAPL'), articles: [{ ...data('AAPL').articles[0], title: '<img src=x onerror=alert(1)> Apple earnings' }] } }));
   await page.goto('/');
-  await page.locator('#news-view').selectOption('all');
   await expect(page.locator('article h3')).toHaveText('<img src=x onerror=alert(1)> Apple earnings');
   await expect(page.locator('article img')).toHaveCount(0);
   await page.getByLabel('Subiect', { exact: true }).selectOption('Reglementări');
@@ -63,25 +58,25 @@ test('shows an explicit empty state when there are no directly relevant articles
   await expect(page.getByRole('heading', { name: 'No relevant news at the moment.' })).toBeVisible();
 });
 
-test('switches the whole interface and summaries to English and persists the preference', async ({ page }) => {
-  await page.route('**/api/news?*', route => {
-    const url = new URL(route.request().url()), english = url.searchParams.get('lang') === 'en';
-    const result = data(url.searchParams.get('ticker'));
-    result.articles[0] = { ...result.articles[0], title: english ? 'Apple quarterly results' : 'Rezultatele trimestriale Apple', originalTitle:'Apple quarterly results', titleTranslated:true, summary:{status:'ready', text:english?'Revenue increased in the reported quarter.':'Veniturile au crescut în trimestrul raportat.'} };
-    return route.fulfill({json:result});
-  });
+test('switches interface language and keeps the original headline and excerpt', async ({ page }) => {
+  const result = data('AAPL');
+  result.articles[0].sourceExcerpt = 'Revenue increased in the reported quarter.';
+  await page.route('**/api/news?*', route => route.fulfill({ json: result }));
   await page.goto('/');
-  await expect(page.getByText('Veniturile au crescut în trimestrul raportat.')).toBeVisible();
-  await page.getByLabel('Limba interfeței').selectOption('en');
-  await expect(page.getByRole('button',{name:'Most important',exact:true})).toBeVisible();
+  await expect(page.getByText('Fragment din sursă')).toBeVisible();
   await expect(page.getByText('Revenue increased in the reported quarter.')).toBeVisible();
-  await expect(page.locator('html')).toHaveAttribute('lang','en');
-  await page.getByLabel('Topic',{exact:true}).selectOption('Rezultate financiare');
+  await page.getByLabel('Limba interfeței').selectOption('en');
+  await expect(page.getByRole('button', { name: 'Most important', exact: true })).toBeVisible();
+  await expect(page.getByText('Source excerpt', { exact: true })).toBeVisible();
+  await expect(page.locator('article').first()).toContainText('AAPL quarterly earnings outlook');
+  await expect(page.getByText('Revenue increased in the reported quarter.')).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+  await page.getByLabel('Topic', { exact: true }).selectOption('Rezultate financiare');
   await expect(page.locator('article')).toHaveCount(1);
   await page.reload();
   await expect(page.getByLabel('Interface language')).toHaveValue('en');
-  await expect(page.getByRole('button',{name:'Most recent',exact:true})).toBeVisible();
-  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await expect(page.getByRole('button', { name: 'Most recent', exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
 test('shows sourced investor filings, amendment warnings and grounded company research', async ({ page }) => {
@@ -99,11 +94,11 @@ test('shows sourced investor filings, amendment warnings and grounded company re
   await page.screenshot({path:`test-results/research-${test.info().project.name}.png`,fullPage:true});
 });
 
-test('missing summaries and credentials are explicit; demo switches language without live-looking claims', async ({ page }) => {
-  await page.route('**/api/news?*',route=>route.fulfill({json:{...data('AAPL'),articles:[{...data('AAPL').articles[0],summary:{status:'no_text'}}]}}));
+test('headline-only stories stay visible and demo switches language', async ({ page }) => {
+  await page.route('**/api/news?*',route=>route.fulfill({json:{...data('AAPL'),articles:[{...data('AAPL').articles[0]}]}}));
   await page.goto('/');
-  await page.locator('#news-view').selectOption('all');
-  await expect(page.getByText('Rezumat indisponibil: sursa oferă doar titlul.')).toBeVisible();
+  await expect(page.locator('article h3')).toHaveText('AAPL quarterly earnings outlook');
+  await expect(page.locator('article .article-excerpt')).toHaveCount(0);
   await expect(page.locator('#investors')).toContainText('Sursa nu este configurată încă pe server.');
   await expect(page.locator('#analysis .verdict')).toHaveText('Date insuficiente');
   await page.route('**/api/news?*',route=>route.fulfill({status:503,json:{error:'unavailable'}}));
@@ -111,13 +106,13 @@ test('missing summaries and credentials are explicit; demo switches language wit
   await page.getByRole('button',{name:'Explorează demonstrația'}).click();
   await page.getByLabel('Limba interfeței').selectOption('en');
   await expect(page.locator('#demo-notice')).toContainText('DEMO MODE');
-  await expect(page.locator('article').first()).toContainText('fictional summary example');
+  await expect(page.locator('article').first()).toContainText('Apple: what investors may watch');
   await expect(page.locator('#analysis')).toContainText('not an actual recommendation');
   await expect(page.locator('article a')).toHaveCount(0);
 });
 
 test('explains missing configuration and provider failures in the selected language',async({page})=>{
-  await page.route('**/api/news?*',route=>route.fulfill({json:{...data('AAPL'),setup:{missing:['FINNHUB_API_KEY','AI_API_KEY']}}}));
+  await page.route('**/api/news?*',route=>route.fulfill({json:{...data('AAPL'),setup:{missing:['FINNHUB_API_KEY']}}}));
   await page.route('**/api/analysis?*',route=>route.fulfill({json:{status:'unavailable',verdict:'insufficient',reason:'provider_auth'}}));
   await page.goto('/');
   await expect(page.locator('#setup-notice')).toBeVisible();
@@ -128,7 +123,7 @@ test('explains missing configuration and provider failures in the selected langu
   await expect(page.locator('#analysis')).toContainText('The provider rejected the API key');
 });
 
-test('buy signal and the calculation are visible without an AI configuration',async({page})=>{
+test('buy signal and the calculation are visible',async({page})=>{
   await page.route('**/api/news?*',route=>route.fulfill({json:data('AAPL')}));
   await page.route('**/api/analysis?*',route=>route.fulfill({json:{status:'ready',engine:'rules-v1',verdict:'buy',buyDecision:'buy',score:3,rationale:'Regulile susțin o achiziție.',criteria:[{id:'revenue',label:'Creșterea veniturilor',value:15,points:1},{id:'earnings',label:'Creșterea EPS',value:20,points:1},{id:'valuation',label:'P/E',value:20,points:1}],methodology:'Cumpără la scor de cel puțin +2.',risks:['Euristica nu a fost validată istoric.'],opportunities:[]}}));
   await page.goto('/');
@@ -160,7 +155,6 @@ test('crypto selection loads news, hides equity research, switches languages and
   });
   await page.route('**/api/news?*', route => {
     const result = data(new URL(route.request().url()).searchParams.get('ticker'));
-    result.articles[0].summary = { status: 'ready', text: 'Market news summary.' };
     return route.fulfill({ json: result });
   });
   await page.goto('/');
@@ -179,14 +173,13 @@ test('crypto selection loads news, hides equity research, switches languages and
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
-test('crypto source description remains visible without AI and untrusted markup is rendered as text', async ({ page }) => {
-  await page.route('**/api/news?*', route => route.fulfill({ json: { ...data('BTC'), articles: [{ ...data('BTC').articles[0], sourceExcerpt: 'Bitcoin source context <img src=x onerror=alert(1)>', summary: { status: 'not_configured' } }] } }));
+test('crypto source description is shown and untrusted markup is rendered as text', async ({ page }) => {
+  await page.route('**/api/news?*', route => route.fulfill({ json: { ...data('BTC'), articles: [{ ...data('BTC').articles[0], sourceExcerpt: 'Bitcoin source context <img src=x onerror=alert(1)>' }] } }));
   await page.goto('/');
   await page.getByRole('button', { name: /Bitcoin/ }).click();
-  await page.locator('#news-view').selectOption('all');
-  await expect(page.getByText('Pe scurt · textul sursei')).toBeVisible();
+  await expect(page.getByText('Fragment din sursă')).toBeVisible();
   await expect(page.getByText('Bitcoin source context <img src=x onerror=alert(1)>')).toBeVisible();
   await expect(page.locator('article img')).toHaveCount(0);
   await page.getByLabel('Limba interfeței').selectOption('en');
-  await expect(page.getByText('At a glance · source text')).toBeVisible();
+  await expect(page.getByText('Source excerpt')).toBeVisible();
 });

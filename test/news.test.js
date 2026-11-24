@@ -19,7 +19,7 @@ test('deduplicates titles and rejects unrelated stories, invalid links and inval
   assert.equal(articles.length, 1);
 });
 test('ranks financial results ahead of routine recent company coverage', () => {
-  const articles = parseFeed(feed(item('Apple company news') + item('Apple quarterly earnings', 'https://example.com/earnings', 'Sun, 08 Nov 2026 10:00:00 GMT')), companies[0], now);
+  const articles = parseFeed(feed(item('Apple company news') + item('Apple quarterly earnings', 'https://example.com/earnings', 'Sun, 08 Nov 2026 13:00:00 GMT')), companies[0], now);
   assert.equal(articles[0].category, 'Rezultate financiare');
 });
 test('handles an empty feed and rejects non-RSS and XML entity declarations', () => {

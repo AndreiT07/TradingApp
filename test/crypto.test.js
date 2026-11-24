@@ -12,7 +12,7 @@ test('crypto RSS filters unrelated stories and retains sources and categories', 
   assert.equal(articles[0].source, 'Reuters');
   assert.equal(articles[0].category, 'Reglementări');
 });
-test('crypto uses five-minute RSS cache even with Finnhub configured, coalesces requests, and marks stale fallback', async () => {
+test('crypto uses one-hour RSS cache even with Finnhub configured, coalesces requests, and marks stale fallback', async () => {
   const store = new Store(':memory:'); let calls = 0;
   const research = new Research({ store, env: { FINNHUB_API_KEY:'test', DATA_PROVIDER_TERMS_ACCEPTED:'true' }, call: async url => {
     calls++; assert.equal(url.hostname, 'www.coindesk.com');
@@ -21,7 +21,7 @@ test('crypto uses five-minute RSS cache even with Finnhub configured, coalesces 
   try {
     const [first, second] = await Promise.all([research.news(cryptoAssets[1]), research.news(cryptoAssets[1], 'en')]);
     assert.equal(calls, 1); assert.equal(second.lang, 'en');
-    assert.equal(first.articles[0].summary.status, 'no_text');
+    assert.equal(first.articles[0].sourceExcerpt, null);
     assert.deepEqual(first.setup.missing, []);
     store.db.prepare('UPDATE snapshots SET updated = ? WHERE key = ?').run(new Date(Date.now() - 3600000).toISOString(), 'rss-news:BTC');
     const refreshed = await research.news(cryptoAssets[1]);
@@ -50,22 +50,13 @@ test('descriptive RSS supplies sanitized excerpts without treating Google descri
   assert.equal(article.description, 'Bitcoin rules &amp; market context.');
   assert.equal(parseFeed(describedFeed(), cryptoAssets[1])[0].description, undefined);
 });
-test('crypto background summaries run without Finnhub, reads never invoke AI, and cached bilingual results are reused', async () => {
-  const store = new Store(':memory:'); let generated = 0;
-  const research = new Research({ store, env: {}, call: async () => ({ text: describedFeed() }), ai: { enabled: true, generate: async () => {
-    generated++;
-    return { status: 'ready', content: { ro: { title: 'Reguli Bitcoin', text: 'Context despre reguli.' }, en: { title: 'Bitcoin rules', text: 'Context about rules.' } } };
-  } } });
+test('crypto excerpts are served identically in either interface language', async () => {
+  const research = new Research({ store: new Store(':memory:'), env: {}, call: async () => ({ text: describedFeed() }) });
   try {
-    const asset = cryptoAssets[1];
-    const pending = await research.news(asset);
-    assert.equal(generated, 0); assert.ok(pending.articles[0].sourceExcerpt);
-    assert.equal(pending.articles[0].summary.status, 'pending');
-    await research.refresh();
-    const ready = await research.news(asset);
-    assert.equal(ready.articles[0].summary.text, 'Context despre reguli.');
-    assert.equal((await research.news(asset, 'en')).articles[0].summary.text, 'Context about rules.');
-    const count = generated; await research.refresh(); assert.equal(generated, count);
+    const ro = await research.news(cryptoAssets[1], 'ro');
+    const en = await research.news(cryptoAssets[1], 'en');
+    assert.equal(ro.articles[0].sourceExcerpt, 'Bitcoin rules & market context.');
+    assert.deepEqual(ro.articles, en.articles);
   } finally { await research.stop(); }
 });
 test('failed descriptive source falls back to Google headlines without invented descriptions', async () => {
@@ -76,7 +67,6 @@ test('failed descriptive source falls back to Google headlines without invented 
   try {
     const result = await research.news(cryptoAssets[1]);
     assert.equal(result.articles[0].provider, 'google_rss');
-    assert.equal(result.articles[0].summary.status, 'no_text');
     assert.equal(result.articles[0].sourceExcerpt, null);
   } finally { await research.stop(); }
 });

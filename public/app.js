@@ -1,6 +1,6 @@
 import { t, lang, setLanguage, categoryKeys, sectorKeys } from './i18n.js';
 const $ = id => document.getElementById(id);
-const state = { companies: [], ticker: 'AAPL', articles: [], sort: 'recent', category: 'all', demo: false, loading: false, error: null, fetchedAt: null, stale: false, setup: null, investors: null, analysis: null };
+const state = { companies: [], ticker: 'AAPL', articles: [], sort: 'important', category: 'all', demo: false, loading: false, error: null, fetchedAt: null, stale: false, setup: null, investors: null, analysis: null };
 let requestController, researchController;
 const dateTime = value => new Intl.DateTimeFormat(lang() === 'ro' ? 'ro-RO' : 'en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
 const number = value => value == null ? '—' : new Intl.NumberFormat(lang(), { maximumFractionDigits: 2 }).format(value);
@@ -63,7 +63,7 @@ function makeDemo() {
     `${name} and new technology: themes to watch`, `Regulatory changes that could matter for ${name}`, `A look at ${name}'s long-term strategy`,
   ];
   return titles.map((title, i) => ({ id: `demo-${i}`, title, category: ['Rezultate financiare','Tranzacții & strategie','Produse & inovație','Reglementări','Companie & piață'][i], score: 9 - i,
-    source: t('exampleSource'), publishedAt: null, url: null, summary: { status: 'ready', text: t('exampleSummary') } }));
+    source: t('exampleSource'), publishedAt: null, url: null }));
 }
 async function loadNews() {
   requestController?.abort(); const controller = requestController = new AbortController();
@@ -120,14 +120,13 @@ function renderFeed() {
     const actions = state.error === 'companies' ? [[t('reload'), () => location.reload(), 'primary-button']] : [[t('retry'), loadNews, 'secondary-button'], [t('demo'), () => { state.demo = true; loadNews(); loadResearch(); }, 'primary-button']];
     $('feed').append(emptyState(t('unavailableTitle'), t(state.error === 'companies' ? 'companiesError' : 'newsError'), actions)); return;
   }
-  const headlines = state.articles.filter(a => state.category === 'all' || a.category === state.category).sort((a, b) => state.sort === 'important' ? b.score - a.score : new Date(b.publishedAt) - new Date(a.publishedAt));
-  const onlySummaries = $('news-view').value === 'summaries';
-  const articles = onlySummaries ? headlines.filter(a => a.summary?.status === 'ready' && a.summary.text).slice(0, 3) : headlines;
-  $('news-status').textContent = `${articles.length} ${t(articles.length === 1 ? 'article' : 'articles')}${state.demo ? ' · DEMO' : ' · ' + t('lastWeek')}`;
+  const articles = state.articles.filter(a => state.category === 'all' || a.category === state.category);
+  if (state.sort === 'recent') articles.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
+  $('news-status').textContent = `${articles.length} ${t(articles.length === 1 ? 'article' : 'articles')}${state.demo ? ' · DEMO' : ' · ' + t('lastDay')}`;
   if (!articles.length) {
     const noRelevantNews = !state.articles.length;
     $('feed').append(emptyState(t(noRelevantNews ? 'emptyCompanyTitle' : 'empty'),
-      t(noRelevantNews ? 'emptyCompany' : onlySummaries && headlines.length ? 'noSummaries' : 'emptyCategory')));
+      t(noRelevantNews ? 'emptyCompany' : 'emptyCategory')));
     return;
   }
   const grid = element('div', 'news-grid');
@@ -138,22 +137,18 @@ function renderFeed() {
     const heading = element('h3');
     if (article.url && /^https?:\/\//.test(article.url)) { const link = element('a', '', article.title); link.href = article.url; link.target = '_blank'; link.rel = 'noopener noreferrer'; heading.append(link); }
     else heading.textContent = article.title;
-    const summary = element('div', 'article-summary');
-    if (article.summary?.status === 'ready' && article.summary.text) {
-      summary.append(element('span', 'summary-label', t('summary')), element('p', '', article.summary.text), element('small', '', state.demo ? t('example') : t('summaryBasis')));
-    } else {
-      if (article.sourceExcerpt) summary.append(element('span', 'summary-label', t('sourceExcerpt')), element('p', '', article.sourceExcerpt), element('small', '', t('sourceExcerptBasis')));
-      const key = { pending:'summaryPending', not_configured:'summaryConfig', budget_limited:'summaryBudget', no_text:'noText' }[article.summary?.status] ?? 'summaryError';
-      summary.append(element('p', 'summary-missing', article.summary?.reason ? t(article.summary.reason) : t(key)));
+    card.append(meta, heading);
+    if (article.sourceExcerpt) {
+      const excerpt = element('div', 'article-excerpt');
+      excerpt.append(element('span', 'excerpt-label', t('sourceExcerpt')), element('p', '', article.sourceExcerpt));
+      card.append(excerpt);
     }
-    if (article.originalTitle && article.originalTitle !== article.title) summary.append(element('small', 'original-headline', `${t('originalTitle')}: ${article.originalTitle}`));
-    else if (!state.demo && !article.titleTranslated) summary.append(element('small', '', t('originalLanguage')));
     const bottom = element('div', 'article-bottom');
     bottom.append(element('span', 'source-dot'), element('span', '', article.source), element('span', '', '·'));
     if (article.publishedAt) { const time = element('time', '', dateTime(article.publishedAt)); time.dateTime = article.publishedAt; bottom.append(time); }
     else bottom.append(element('span', '', t('example')));
     if (article.url) { const arrow = element('span', 'article-open', '↗'); arrow.setAttribute('aria-hidden', 'true'); bottom.append(arrow); }
-    card.append(meta, heading, summary, bottom); grid.append(card);
+    card.append(bottom); grid.append(card);
   });
   $('feed').append(grid);
 }
@@ -164,7 +159,7 @@ function link(url, text = t('source')) {
 function statusMessage(data) {
   if (data?.status === 'not_configured' && data.missing?.length) return `${t(data.engine === 'rules-v1' ? 'signalSetupIntro' : 'setupIntro')} ${t('setupFile')}: ${data.missing.join(', ')}.`;
   if (data?.reason && data.status === 'unavailable') return t(data.reason);
-  return t(!data ? 'loading' : ({ not_configured:'notConfigured', pending:'pending', unavailable:'sourceError', stale:'stale', budget_limited:'analysisBudget', demo:'example' }[data.status] ?? 'noAnalysis'));
+  return t(!data ? 'loading' : ({ not_configured:'notConfigured', pending:'pending', unavailable:'sourceError', stale:'stale', demo:'example' }[data.status] ?? 'noAnalysis'));
 }
 function renderResearch() {
   document.querySelector('.research-section').hidden = isCrypto();
@@ -244,7 +239,6 @@ function renderResearch() {
 }
 $('company-search').addEventListener('input', renderCompanies);
 $('category').addEventListener('change', event => { state.category = event.target.value; renderFeed(); });
-$('news-view').addEventListener('change', renderFeed);
 $('refresh').addEventListener('click', () => { loadNews(); loadResearch(); });
 $('exit-demo').addEventListener('click', () => { state.demo = false; loadNews(); loadResearch(); });
 $('language').addEventListener('change', event => {
@@ -269,8 +263,11 @@ try {
   state.companies = [...companies, ...crypto]; $('company-count').textContent = companies.length; $('crypto-count').textContent = crypto.length; selectCompany(state.ticker);
 } catch { state.error = 'companies'; renderFeed(); }
 
-// Read-only polling makes completed background work visible without invoking AI from the browser.
 setInterval(() => {
-  const pending = state.analysis?.status === 'pending' || state.investors?.status === 'pending' || state.articles.some(article => article.summary?.status === 'pending');
-  if (pending && !document.hidden && !state.demo && !state.loading) { loadNews(); loadResearch(); }
+  const pending = state.analysis?.status === 'pending' || state.investors?.status === 'pending';
+  if (pending && !document.hidden && !state.demo) loadResearch();
 }, 15000);
+
+setInterval(() => {
+  if (state.companies.length && !document.hidden && !state.demo && !state.loading) loadNews();
+}, 3_600_000);

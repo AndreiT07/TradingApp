@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { companies } from './companies.js';
 import { cryptoAssets } from './crypto.js';
 const parser = new XMLParser({ ignoreAttributes: false, processEntities: true, htmlEntities: true });
-const newsWindow = 7 * 86_400_000;
+export const NEWS_WINDOW = 86_400_000;
 const escapePattern = text => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const subjects = [...companies, ...cryptoAssets.slice(1)].map(({ ticker, keywords, type }) => ({
   ticker,
@@ -43,7 +43,7 @@ export function isRelevantHeadline(title, subject) {
 }
 
 export function isRecentNews(time, now) {
-  return Number.isFinite(time) && time >= now - newsWindow && time <= now + 300_000;
+  return Number.isFinite(time) && time >= now - NEWS_WINDOW && time <= now + 300_000;
 }
 
 export function headlineKey(title) {

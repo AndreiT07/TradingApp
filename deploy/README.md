@@ -123,9 +123,9 @@ Imaginile vechi nu sunt șterse automat, pentru a permite rollback. Verifică pe
 
 Nu adăuga autentificare sau date sensibile pe această conexiune HTTP; configurează HTTPS înainte de acea etapă.
 
-## Configurarea rezumatelor și cercetării
+## Configurarea datelor live
 
-Imaginea include acum rezumate RO/EN, raportări SEC și analiză financiară. Pentru date live, copiază structura din [runtime.env.example](runtime.env.example) în `/opt/tradingapp/runtime.env`, completează securizat valorile și aplică `chmod 600 /opt/tradingapp/runtime.env`. Nu comite acest fișier și nu pune cheile în `.env`, care este regenerat la deploy.
+Pentru știri Finnhub, raportări SEC și analiză financiară, copiază structura din [runtime.env.example](runtime.env.example) în `/opt/tradingapp/runtime.env`, completează securizat valorile și aplică `chmod 600 /opt/tradingapp/runtime.env`. Nu comite acest fișier și nu pune cheile în `.env`, care este regenerat la deploy.
 
 După schimbarea configurației:
 
@@ -135,6 +135,6 @@ docker compose up -d --force-recreate --wait --wait-timeout 90
 docker compose logs --tail=100
 ```
 
-Validează planul Finnhub și dreptul de afișare înainte de `DATA_PROVIDER_TERMS_ACCEPTED=true`. Configurează cheia OpenAI și prețurile reale per milion de tokeni; fără ele generarea AI rămâne oprită. Pentru SEC folosește un nume de aplicație și un email real de contact în `SEC_USER_AGENT`.
+Validează planul Finnhub și dreptul de afișare înainte de `DATA_PROVIDER_TERMS_ACCEPTED=true`. Pentru SEC folosește un nume de aplicație și un email real de contact în `SEC_USER_AGENT`.
 
-Datele și evidența bugetului sunt într-un volum SQLite persistent `tradingapp_data`. **Nu folosi `down -v`**, deoarece ar elimina și evidența consumului. Deploy-ul păstrează `runtime.env` și volumul; backup-ul imaginii/configurației nu înlocuiește backup-ul volumului. Aplicația rulează fără chei și afișează stări explicite pentru funcțiile neconfigurate. Detalii despre costuri și restricții: [README](../README.md).
+Datele aplicației sunt în volumul SQLite persistent `tradingapp_data`. Comanda `down -v` șterge acest volum. Deploy-ul păstrează `runtime.env` și volumul; backup-ul imaginii/configurației nu înlocuiește backup-ul volumului. Aplicația rulează fără chei și afișează stări explicite pentru funcțiile neconfigurate. Detalii despre surse și actualizări în [README](../README.md).
