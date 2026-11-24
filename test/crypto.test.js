@@ -23,10 +23,10 @@ test('crypto uses five-minute RSS cache even with Finnhub configured, coalesces 
     assert.equal(calls, 1); assert.equal(second.lang, 'en');
     assert.equal(first.articles[0].summary.status, 'no_text');
     assert.deepEqual(first.setup.missing, []);
-    store.db.prepare('UPDATE snapshots SET updated = ? WHERE key = ?').run(new Date(Date.now() - 3600000).toISOString(), 'news:BTC');
+    store.db.prepare('UPDATE snapshots SET updated = ? WHERE key = ?').run(new Date(Date.now() - 3600000).toISOString(), 'rss-news:BTC');
     const refreshed = await research.news(cryptoAssets[1]);
     assert.equal(calls, 2); assert.equal(refreshed.stale, false);
-    store.db.prepare('UPDATE snapshots SET updated = ? WHERE key = ?').run(new Date(Date.now() - 3600000).toISOString(), 'news:BTC');
+    store.db.prepare('UPDATE snapshots SET updated = ? WHERE key = ?').run(new Date(Date.now() - 3600000).toISOString(), 'rss-news:BTC');
     research.call = async () => { throw new Error('offline'); };
     assert.equal((await research.news(cryptoAssets[1])).stale, true);
   } finally { await research.stop(); }
@@ -70,7 +70,7 @@ test('crypto background summaries run without Finnhub, reads never invoke AI, an
 });
 test('failed descriptive source falls back to Google headlines without invented descriptions', async () => {
   const research = new Research({ store: new Store(':memory:'), env: {}, call: async url => {
-    if (url.hostname === 'www.coindesk.com') throw new Error('offline');
+    if (url.hostname !== 'news.google.com') throw new Error('offline');
     return { text: xml() };
   } });
   try {

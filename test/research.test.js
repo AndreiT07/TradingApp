@@ -64,10 +64,51 @@ test('failed requests keep a reservation; invalid AI responses never become a su
     assert.equal(validateAI('analysis',{verdict:'buy',evidenceIds:['fake'],ro:{rationale:'x',opportunities:['x'],risks:['x']},en:{rationale:'x',opportunities:['x'],risks:['x']}},['real']),false);
   } finally {store.close();}
 });
-test('normalizes provider news, excludes malformed URLs, duplicates and out-of-window articles', () => {
+test('normalizes provider news and excludes unrelated, malformed, duplicate and old articles before the cap', () => {
   const now=Date.now(), article={headline:'Apple earnings',url:'https://example.com/a',datetime:now/1000,summary:'<p>Revenue rose.</p>',source:'Source'};
-  const items=normalizeNews([article,article,{...article,headline:'unsafe',url:'javascript:alert(1)'},{...article,headline:'old',datetime:now/1000-8*86400}],companies[0],now);
+  const unrelated = Array.from({ length: 30 }, (_, i) => ({
+    ...article, headline: `Dell quarterly earnings update ${i}`, url: `https://example.com/dell-${i}`, related: 'AAPL', summary: 'Apple was mentioned.',
+  }));
+  const items = normalizeNews([...unrelated, { ...article, headline: 'iPhone rollout' }, { ...article, headline: 'iPhone rollout' },
+    { ...article, headline: 'Apple unsafe', url: 'javascript:alert(1)' },
+    { ...article, headline: 'Apple old', datetime: now / 1000 - 8 * 86400 }], companies[0], now);
   assert.equal(items.length,1); assert.equal(items[0].description,'Revenue rose.');
+  assert.equal(items[0].title, 'iPhone rollout');
+});
+test('a legacy Finnhub snapshot with no relevant headlines falls back to cached, filtered RSS', async () => {
+  const store = new Store(':memory:');
+  const [apple] = companies;
+  const published = new Date();
+  const dell = { id: 'dell', title: 'Dell gears up to report Q3 earnings', provider: 'finnhub', publishedAt: published.toISOString() };
+  store.put('news:AAPL', { articles: [dell], fetchedAt: published.toISOString() });
+  let rssCalls = 0;
+  const rssItem = title => `<item><title>${title}</title><link>https://example.com/${title.split(' ')[0]}</link><pubDate>${published.toUTCString()}</pubDate></item>`;
+  const service = new Research({
+    store,
+    env: { FINNHUB_API_KEY: 'test-only-key', DATA_PROVIDER_TERMS_ACCEPTED: 'true' },
+    call: async requested => {
+      assert.equal(requested.hostname, 'news.google.com');
+      rssCalls++;
+      return { text: `<rss><channel>${rssItem('Dell earnings')}${requested.searchParams.get('q').includes('Apple') ? rssItem('iPhone sales rise') : ''}</channel></rss>` };
+    },
+  });
+  try {
+    const [ro, en] = await Promise.all([service.news(apple), service.news(apple, 'en')]);
+    assert.deepEqual(ro.articles.map(article => [article.title, article.provider]), [['iPhone sales rise', 'google_rss']]);
+    assert.equal(en.articles.length, 1);
+    assert.equal(rssCalls, 1);
+    assert.deepEqual(store.get('news:AAPL').data.articles, [dell]);
+    await service.news(apple);
+    assert.equal(rssCalls, 1);
+    const microsoft = companies.find(company => company.ticker === 'MSFT');
+    const empty = await service.news(microsoft);
+    assert.deepEqual(empty.articles, []);
+    assert.equal(empty.stale, false);
+    await service.news(microsoft);
+    assert.equal(rssCalls, 2);
+  } finally {
+    await service.stop();
+  }
 });
 test('Nvidia releases appear alongside cached Finnhub news without an AI summary', async () => {
   const store = new Store(':memory:');
@@ -78,6 +119,7 @@ test('Nvidia releases appear alongside cached Finnhub news without an AI summary
   const finnHubFetchedAt = new Date(publishedAt.getTime() - 60 * 60_000).toISOString();
   store.put('news:NVDA', { fetchedAt: finnHubFetchedAt, articles: [
     { id: 'duplicate', title, url: 'https://example.com/syndicated', provider: 'finnhub', publishedAt: publishedAt.toISOString() },
+    { id: 'unrelated', title: 'Disney Stops Reporting Streaming Profit. Should You Worry?', url: 'https://example.com/disney', provider: 'finnhub', publishedAt: publishedAt.toISOString() },
     { id: 'other', title: 'NVIDIA earnings', url: 'https://example.com/earnings', provider: 'finnhub', publishedAt: finnHubFetchedAt },
   ] }, finnHubFetchedAt);
   let rssCalls = 0;
@@ -142,7 +184,7 @@ test('Form 4 distinguishes purchases, sales, other operations and derivatives', 
 });
 test('public read endpoints never trigger AI or market-data calls; summaries use the selected language', async () => {
   const store=new Store(':memory:');let calls=0;
-  const article={id:'a',title:'Original title',description:'Real source description',url:'https://example.com',category:'Rezultate financiare',score:6,publishedAt:new Date().toISOString()};
+  const article={id:'a',title:'Apple quarterly results',description:'Real source description',url:'https://example.com',category:'Rezultate financiare',score:6,publishedAt:new Date().toISOString()};
   store.put('news:AAPL',{articles:[article],fetchedAt:new Date().toISOString()});
   store.put(`summary:a:${hash({title:article.title,description:article.description})}`,{status:'ready',content});
   const service=new Research({store,env,call:async()=>{calls++;throw new Error('should not call');}});
@@ -161,7 +203,7 @@ test('background worker generates bilingual snapshots once, serves analysis, and
   const dataEnv={...env,FINNHUB_API_KEY:'fake',DATA_PROVIDER_TERMS_ACCEPTED:'true'};
   const service=new Research({store,env:dataEnv,call:async url=>{
     external++;const path=new URL(url).pathname;
-    if(path.endsWith('/company-news'))return response([{headline:'Earnings update',url:'https://example.com/news',datetime:Date.now()/1000,summary:'Reported results.'}]);
+    if(path.endsWith('/company-news'))return response([{headline:`${url.searchParams.get('symbol')} earnings update`,url:'https://example.com/news',datetime:Date.now()/1000,summary:'Reported results.'}]);
     if(path.endsWith('/quote'))return response({c:100,t:Date.now()/1000});
     return response({metric:{peTTM:20,revenueGrowthTTMYoy:5,epsGrowthTTMYoy:3},series:{quarterly:{eps:[{period}]}}});
   },ai:{enabled:true,generate:async(kind,_ticker,_input,ids)=>{

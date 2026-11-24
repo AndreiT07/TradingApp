@@ -124,7 +124,12 @@ function renderFeed() {
   const onlySummaries = $('news-view').value === 'summaries';
   const articles = onlySummaries ? headlines.filter(a => a.summary?.status === 'ready' && a.summary.text).slice(0, 3) : headlines;
   $('news-status').textContent = `${articles.length} ${t(articles.length === 1 ? 'article' : 'articles')}${state.demo ? ' · DEMO' : ' · ' + t('lastWeek')}`;
-  if (!articles.length) { $('feed').append(emptyState(t('empty'), t(onlySummaries && headlines.length ? 'noSummaries' : state.category === 'all' ? 'emptyCompany' : 'emptyCategory'))); return; }
+  if (!articles.length) {
+    const noRelevantNews = !state.articles.length;
+    $('feed').append(emptyState(t(noRelevantNews ? 'emptyCompanyTitle' : 'empty'),
+      t(noRelevantNews ? 'emptyCompany' : onlySummaries && headlines.length ? 'noSummaries' : 'emptyCategory')));
+    return;
+  }
   const grid = element('div', 'news-grid');
   articles.forEach((article, index) => {
     const card = element('article', `article${index === 0 ? ' featured' : ''}`), meta = element('div', 'article-meta');

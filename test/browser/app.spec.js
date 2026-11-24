@@ -54,6 +54,15 @@ test('treats untrusted titles as text and supports empty category', async ({ pag
   await expect(page.getByText('Nicio știre pentru moment.')).toBeVisible();
 });
 
+test('shows an explicit empty state when there are no directly relevant articles', async ({ page }) => {
+  await page.route('**/api/news?*', route => route.fulfill({ json: { ...data('AAPL'), articles: [] } }));
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Nicio știre relevantă pentru moment.' })).toBeVisible();
+  await expect(page.locator('article')).toHaveCount(0);
+  await page.getByLabel('Limba interfeței').selectOption('en');
+  await expect(page.getByRole('heading', { name: 'No relevant news at the moment.' })).toBeVisible();
+});
+
 test('switches the whole interface and summaries to English and persists the preference', async ({ page }) => {
   await page.route('**/api/news?*', route => {
     const url = new URL(route.request().url()), english = url.searchParams.get('lang') === 'en';

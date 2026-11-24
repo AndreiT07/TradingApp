@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseFeed, classify } from '../news.js';
+import { parseFeed, classify, isRelevantHeadline } from '../news.js';
 import { companies } from '../companies.js';
+import { cryptoAssets } from '../crypto.js';
 const now = Date.parse('2026-11-09T12:00:00Z');
 const item = (title, link = 'https://example.com/article', pubDate = 'Mon, 09 Nov 2026 10:00:00 GMT') => `<item><title>${title}</title><link>${link}</link><pubDate>${pubDate}</pubDate><source url="https://example.com">Reuters</source></item>`;
 const feed = content => `<rss version="2.0"><channel>${content}</channel></rss>`;
@@ -27,3 +28,37 @@ test('handles an empty feed and rejects non-RSS and XML entity declarations', ()
   assert.throws(() => parseFeed('<!DOCTYPE rss [<!ENTITY x "value">]><rss/>', companies[0], now));
 });
 test('classifies regulatory coverage', () => assert.equal(classify('Google antitrust ruling').category, 'Reglementări'));
+test('recognizes the focus of headlines across all tracked companies and crypto lists', () => {
+  const examples = {
+    AAPL: 'iPhone sales rise in Europe',
+    MSFT: 'Azure expands cloud capacity',
+    NVDA: 'NVIDIA Board Reinstates Jensen Huang as CEO',
+    GOOGL: 'Google appeals antitrust ruling',
+    AMZN: 'AWS introduces new cloud service',
+    META: 'Instagram rolls out new privacy controls',
+    TSLA: 'Tesla reports vehicle deliveries',
+    JPM: 'JPM posts quarterly results',
+    'BRK.B': 'BRK.B reports operating earnings',
+    LLY: 'Eli Lilly publishes clinical trial results',
+    CRYPTO: 'US Senate advances stablecoin legislation',
+    BTC: 'Bitcoin funds record inflows',
+    ETH: 'Ethereum developers schedule an upgrade',
+    SOL: 'Solana network activity grows',
+  };
+  for (const subject of [...companies, ...cryptoAssets]) {
+    assert.ok(isRelevantHeadline(examples[subject.ticker], subject), subject.ticker);
+    assert.equal(isRelevantHeadline('Disney Stops Reporting Streaming Profit', subject), false, subject.ticker);
+  }
+  const [apple] = companies;
+  const bitcoin = cryptoAssets[1];
+  assert.equal(isRelevantHeadline('Dell earnings rise as Apple faces supply issues', apple), false);
+  assert.equal(isRelevantHeadline('Apple vs. Broadcom: Comparing Revenue Trends', apple), false);
+  assert.equal(isRelevantHeadline('3 stocks to buy now, including Apple', apple), false);
+  assert.equal(isRelevantHeadline('GTA 6 sends Apple stock investors an unmistakable signal', apple), false);
+  assert.equal(isRelevantHeadline('GTA 6 debut sends a strong signal to Apple stock investors', apple), false);
+  assert.equal(isRelevantHeadline('SpaceX could hit Microsoft-scale revenue in 2027', companies[1]), false);
+  assert.equal(isRelevantHeadline('Berkshire has owned these 2 consumer stocks for decades', companies[8]), false);
+  assert.equal(isRelevantHeadline('Ethereum jumps while Bitcoin stalls', bitcoin), false);
+  assert.equal(isRelevantHeadline('Ethereum outpaces Bitcoin', bitcoin), false);
+  assert.ok(isRelevantHeadline('Bitcoin drops following Ethereum rally', bitcoin));
+});
