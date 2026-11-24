@@ -58,6 +58,11 @@ test('recognizes the focus of headlines across all tracked companies and crypto 
   assert.equal(isRelevantHeadline('GTA 6 debut sends a strong signal to Apple stock investors', apple), false);
   assert.equal(isRelevantHeadline('SpaceX could hit Microsoft-scale revenue in 2027', companies[1]), false);
   assert.equal(isRelevantHeadline('Berkshire has owned these 2 consumer stocks for decades', companies[8]), false);
+  assert.equal(isRelevantHeadline('Berkshire Hathaway owns 22.6% of American Express. Is the stock a buy?', companies[8]), false);
+  assert.ok(isRelevantHeadline('Berkshire Hathaway owns a larger stake in American Express', companies[8]));
+  assert.equal(isRelevantHeadline('JPMorgan AM says AI borrowing binge is holding back bond rally', companies[7]), false);
+  assert.ok(isRelevantHeadline('JPMorgan analysts say Apple is set for stronger iPhone sales', apple));
+  assert.ok(isRelevantHeadline('Apple rises after JPMorgan analysts say demand is improving', apple));
   assert.equal(isRelevantHeadline('Ethereum jumps while Bitcoin stalls', bitcoin), false);
   assert.equal(isRelevantHeadline('Ethereum outpaces Bitcoin', bitcoin), false);
   assert.ok(isRelevantHeadline('Bitcoin drops following Ethereum rally', bitcoin));

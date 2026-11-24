@@ -16,12 +16,16 @@ const context = /\b(?:as|amid|amidst|after|ahead of|following|against|unlike|com
 const comparison = /\b(?:vs\.?|versus|better buy)\b/i;
 const comparativeName = /\b[\w.]+[-‑–](?:scale|like|style|sized?)\b/gi;
 const audience = /\b(?:sends?|gives?)\b(?=[^.!?]{0,100}\b(?:investors|shareholders)\b[^.!?]{0,80}\b(?:signal|message|warning)\b)/i;
+const analystAttribution = /\b(?:AM|asset management|analysts?)\s+(?:says?|sees?|warns?|expects?|forecasts?)\b/i;
+const holdingOpinion = /\b(?:owns|holds)\b[^?!]*\.\s*(?:is (?:the stock|it) a (?:buy|sell|hold)|should (?:you|i) (?:buy|sell|hold))\b/i;
 const basket = /(?:^(?:\d+|top(?: \d+)?|best|this|another|an?|the (?:\d+|best))|\bthese(?: \d+)?)\s+(?:[\w'-]+\s+){0,6}(?:stocks?|shares?|coins?|tokens?|etfs?)\b/i;
 const marketRoundup = /^(?:stock market|wall street|markets?) (?:today|wrap|roundup|recap|sell-off)\b|\binvestment ideas feature highlights\b/i;
 
 export function isRelevantHeadline(title, subject) {
   const headline = title.normalize('NFKC').replace(/\s+/g, ' ').trim();
-  const lead = headline.split(context, 1)[0].split(audience, 1)[0].replace(comparativeName, ' ');
+  if (holdingOpinion.test(headline)) return false;
+  const mainClause = headline.split(context, 1)[0];
+  const lead = mainClause.split(analystAttribution).at(-1).trim().split(audience, 1)[0].replace(comparativeName, ' ');
   if (basket.test(lead) || comparison.test(lead) || marketRoundup.test(lead)) return false;
 
   let first = subject.ticker === 'CRYPTO' ? lead.search(cryptoMarket) : -1;
