@@ -12,7 +12,7 @@ const subjects = [...companies, ...cryptoAssets.slice(1)].map(({ ticker, keyword
   symbol: new RegExp(`\\b${escapePattern(ticker)}\\b`),
 }));
 const cryptoMarket = /\b(?:cryptocurrenc(?:y|ies)|crypto(?:assets?)?|digital assets?|stablecoins?|altcoins?|memecoins?|defi|blockchain|xrp|dogecoin|cardano|litecoin|tether|usdt|usdc|binance|coinbase)\b/i;
-const context = /\b(?:as|amid|amidst|after|ahead of|following|against|unlike|compared (?:to|with)|thanks to|despite|while|alongside|in the wake of|driven by|boosted by|lifted by|because of|(?:signal|message|warning) to)\b|;/i;
+const context = /\b(?:as|amid|amidst|after|ahead of|follows|following|against|unlike|compared (?:to|with)|thanks to|despite|while|alongside|in the wake of|driven by|boosted by|lifted by|because of|(?:signal|message|warning) to)\b|;/i;
 const comparison = /\b(?:vs\.?|versus|better buy)\b/i;
 const comparativeName = /\b[\w.]+[-‑–](?:scale|like|style|sized?)\b/gi;
 const audience = /\b(?:sends?|gives?)\b(?=[^.!?]{0,100}\b(?:investors|shareholders)\b[^.!?]{0,80}\b(?:signal|message|warning)\b)/i;
@@ -51,6 +51,7 @@ export function headlineKey(title) {
 }
 
 const rules = [
+  { category: 'Companie & piață', weight: 6, pattern: /^(?=.*\b(?:ceo|chief executive|president|board director)\b)(?=.*\b(?:appoint\w*|names|reappoint\w*|reinstat\w*|resign\w*|returns?|steps down)\b)/i },
   { category: 'Rezultate financiare', weight: 6, pattern: /\b(earnings|revenue|profit|quarterly|guidance|results|forecast)\b/i },
   { category: 'Reglementări', weight: 5, pattern: /\b(antitrust|lawsuit|regulat\w*|probe|fda|court|tariff\w*)\b/i },
   { category: 'Tranzacții & strategie', weight: 5, pattern: /\b(acquisit\w*|merger|buyout|deal|invest\w*|partnership)\b/i },
@@ -58,6 +59,10 @@ const rules = [
 ];
 export function classify(title) {
   return rules.find(rule => rule.pattern.test(title)) ?? { category: 'Companie & piață', weight: 1 };
+}
+export function rankNews(title, publishedAt, now) {
+  const { category, weight } = classify(title);
+  return { category, score: weight + 3 / (1 + Math.max(0, now - publishedAt) / 43_200_000) };
 }
 export function parseFeed(xml, company, now = Date.now(), { sourceName, descriptions = false } = {}) {
   if (xml.length > 2_000_000 || /<!DOCTYPE|<!ENTITY/i.test(xml)) throw new Error('Invalid feed');
@@ -76,10 +81,8 @@ export function parseFeed(xml, company, now = Date.now(), { sourceName, descript
     const key = headlineKey(title);
     if (seen.has(key)) return [];
     seen.add(key);
-    const { category, weight } = classify(title);
     const description = descriptions && typeof item.description === 'string' ? item.description.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 6000) : '';
-    const ageHours = Math.max(0, (now - publishedAt) / 3_600_000);
     return [{ id: createHash('sha256').update(url.href).digest('hex').slice(0, 16), title, source: String(source || sourceName || 'Google News'), url: url.href,
-      ...(description ? { description } : {}), publishedAt: new Date(publishedAt).toISOString(), category, score: Number((weight + 3 / (1 + ageHours / 12)).toFixed(3)) }];
+      ...(description ? { description } : {}), publishedAt: new Date(publishedAt).toISOString(), ...rankNews(title, publishedAt, now) }];
   }).sort((a, b) => b.score - a.score).slice(0, 30);
 }

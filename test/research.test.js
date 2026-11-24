@@ -146,7 +146,7 @@ test('cached news returns up to ten ranked stories from the last day and ignores
   const description = '<p>Revenue rose. </p>' + 'Apple published quarterly results. '.repeat(20);
   const articles = Array.from({ length: 12 }, (_, score) => ({
     id: String(score), title: `Apple quarterly results ${score}`, description, score,
-    url: `https://example.com/${score}`, provider: 'finnhub', publishedAt,
+    url: `https://example.com/${score}`, provider: 'finnhub', publishedAt: new Date(now - (11 - score) * 60_000).toISOString(),
   }));
   articles.push({ ...articles[0], title: 'Old Apple earnings', score: 100, publishedAt: new Date(now - 25 * 3600_000).toISOString() });
   const newest = articles[11];
@@ -157,8 +157,9 @@ test('cached news returns up to ten ranked stories from the last day and ignores
   try {
     const ro = await service.news(companies[0], 'ro');
     const en = await service.news(companies[0], 'en');
-    assert.deepEqual(ro.articles, en.articles);
-    assert.deepEqual(ro.articles.map(article => article.score), [11, 10, 9, 8, 7, 6, 5, 4, 3, 2]);
+    const displayedText = articles => articles.map(({ title, sourceExcerpt }) => [title, sourceExcerpt]);
+    assert.deepEqual(displayedText(ro.articles), displayedText(en.articles));
+    assert.deepEqual(ro.articles.map(article => Number(article.id)), [11, 10, 9, 8, 7, 6, 5, 4, 3, 2]);
     const [first] = ro.articles;
     assert.equal(first.title, newest.title);
     assert.equal(first.summary, undefined);

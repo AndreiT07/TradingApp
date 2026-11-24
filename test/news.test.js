@@ -28,6 +28,12 @@ test('handles an empty feed and rejects non-RSS and XML entity declarations', ()
   assert.throws(() => parseFeed('<!DOCTYPE rss [<!ENTITY x "value">]><rss/>', companies[0], now));
 });
 test('classifies regulatory coverage', () => assert.equal(classify('Google antitrust ruling').category, 'Reglementări'));
+test('an executive appointment ranks above routine recent stories', () => {
+  const nvidia = companies.find(company => company.ticker === 'NVDA');
+  const articles = parseFeed(feed(item('Nvidia shares rise') + item('NVIDIA reinstates Jensen Huang as CEO',
+    'https://example.com/board', 'Sun, 08 Nov 2026 13:00:00 GMT')), nvidia, now);
+  assert.equal(articles[0].title, 'NVIDIA reinstates Jensen Huang as CEO');
+});
 test('recognizes the focus of headlines across all tracked companies and crypto lists', () => {
   const examples = {
     AAPL: 'iPhone sales rise in Europe',
@@ -57,6 +63,7 @@ test('recognizes the focus of headlines across all tracked companies and crypto 
   assert.equal(isRelevantHeadline('GTA 6 sends Apple stock investors an unmistakable signal', apple), false);
   assert.equal(isRelevantHeadline('GTA 6 debut sends a strong signal to Apple stock investors', apple), false);
   assert.equal(isRelevantHeadline('SpaceX could hit Microsoft-scale revenue in 2027', companies[1]), false);
+  assert.equal(isRelevantHeadline('Why Is Palantir Stock Up Today? AI Rally Follows Nvidia CEO Return', companies[2]), false);
   assert.equal(isRelevantHeadline('Berkshire has owned these 2 consumer stocks for decades', companies[8]), false);
   assert.equal(isRelevantHeadline('Berkshire Hathaway owns 22.6% of American Express. Is the stock a buy?', companies[8]), false);
   assert.ok(isRelevantHeadline('Berkshire Hathaway owns a larger stake in American Express', companies[8]));
