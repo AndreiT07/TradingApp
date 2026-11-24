@@ -106,7 +106,9 @@ Dacă ai ales alt port, adaugă-l în URL. În browserul tău deschide `http://I
 
 ## Operare și rollback
 
-Compose pornește aplicația la reboot prin `restart: unless-stopped`; Docker este activat prin systemd. Restartul unei singure instanțe poate produce o scurtă întrerupere. Nu există HTTPS în această configurație pe IP.
+Compose pornește aplicația la reboot prin `restart: unless-stopped`; Docker este activat prin systemd. Restartul unei singure instanțe poate produce o scurtă întrerupere.
+
+Pe serverele cu HTTPS, `/opt/tradingapp/compose.override.yml` poate conecta aplicația la rețeaua privată a proxy-ului și publica doar redirecționarea HTTP. Scriptul folosește acest fișier local atât la deploy, cât și la rollback. Verifică aplicația și `/api/health` prin adresa HTTPS a proxy-ului.
 
 Dacă noul container nu trece healthcheck-ul în 90 de secunde, scriptul încearcă restaurarea versiunii anterioare și marchează deploy-ul eșuat. Primul deploy nu are o versiune anterioară. Rollback manual (dacă fișierele există):
 
