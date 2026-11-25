@@ -247,8 +247,9 @@ test('the publisher filter hides Yahoo, supports official releases, and persists
   await expect(page.locator('article')).toContainText('Reuters');
   await page.reload();
   await expect(page.locator('article')).toHaveCount(1);
-  await page.locator('#publisher-filter > summary').click();
-  await expect(page.getByRole('checkbox', { name: 'Ascunde Yahoo' })).toBeChecked();
+  await expect(page.locator('#hide-yahoo')).toBeChecked();
+  const publisherFilter = page.locator('#publisher-filter');
+  if (!await publisherFilter.evaluate(panel => panel.open)) await publisherFilter.locator('summary').click();
   await page.getByRole('checkbox', { name: 'Doar comunicate oficiale' }).check();
   await expect(page.getByText('Nicio știre nu corespunde filtrelor de publicație.')).toBeVisible();
   await page.getByRole('button', { name: 'Resetează filtrele' }).click();
