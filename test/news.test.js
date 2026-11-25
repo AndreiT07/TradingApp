@@ -28,6 +28,12 @@ test('handles an empty feed and rejects non-RSS and XML entity declarations', ()
   assert.throws(() => parseFeed('<!DOCTYPE rss [<!ENTITY x "value">]><rss/>', companies[0], now));
 });
 test('classifies regulatory coverage', () => assert.equal(classify('Google antitrust ruling').category, 'Reglementări'));
+test('the Apple feed excludes fruit coverage and keeps stories about Apple products', () => {
+  const [apple] = companies;
+  assert.equal(isRelevantHeadline('Wapa revises EU apple forecast downward', apple), false);
+  assert.equal(isRelevantHeadline('Apple harvest expands in Washington', apple), false);
+  assert.equal(isRelevantHeadline('Apple reports iPhone growth among fruit growers', apple), true);
+});
 test('an executive appointment ranks above routine recent stories', () => {
   const nvidia = companies.find(company => company.ticker === 'NVDA');
   const articles = parseFeed(feed(item('Nvidia shares rise') + item('NVIDIA reinstates Jensen Huang as CEO',

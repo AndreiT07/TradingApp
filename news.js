@@ -20,6 +20,8 @@ const analystAttribution = /\b(?:AM|asset management|analysts?)\s+(?:says?|sees?
 const holdingOpinion = /\b(?:owns|holds)\b[^?!]*\.\s*(?:is (?:the stock|it) a (?:buy|sell|hold)|should (?:you|i) (?:buy|sell|hold))\b/i;
 const basket = /(?:^(?:\d+|top(?: \d+)?|best|this|another|an?|the (?:\d+|best))|\bthese(?: \d+)?)\s+(?:[\w'-]+\s+){0,6}(?:stocks?|shares?|coins?|tokens?|etfs?)\b/i;
 const marketRoundup = /^(?:stock market|wall street|markets?) (?:today|wrap|roundup|recap|sell-off)\b|\binvestment ideas feature highlights\b/i;
+const appleAgriculture = /\b(?:wapa|orchards?|growers?|apple (?:crops?|harvests?|fruit|varieties|yield|juice))\b/i;
+const appleProducts = /\b(?:aapl|iphone|ipad|macbook|ios|macos|app store|tim cook|apple (?:inc|stock|earnings))\b/i;
 
 export function isRelevantHeadline(title, subject) {
   const headline = title.normalize('NFKC').replace(/\s+/g, ' ').trim();
@@ -31,6 +33,7 @@ export function isRelevantHeadline(title, subject) {
   let first = subject.ticker === 'CRYPTO' ? lead.search(cryptoMarket) : -1;
   let focus = first < 0 ? null : 'CRYPTO';
   for (const { ticker, aliases, symbol, type } of subjects) {
+    if (ticker === 'AAPL' && appleAgriculture.test(headline) && !appleProducts.test(headline)) continue;
     for (const pattern of [aliases, symbol]) {
       const position = lead.search(pattern);
       if (position >= 0 && (first < 0 || position < first)) {
