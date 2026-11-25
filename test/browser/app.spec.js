@@ -227,3 +227,51 @@ test('crypto favorites, alerts, grouped sources and chart event markers work tog
   await expect(page.locator('#favorite-assets').getByRole('button', { name: 'Bitcoin' })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
+
+test('the publisher filter hides Yahoo, supports official releases, and persists after reload', async ({ page }) => {
+  await page.route('**/api/news?*', route => {
+    const query = new URL(route.request().url()).searchParams;
+    const feed = data('AAPL');
+    feed.availableSources = [{ key: 'yahoo', name: 'Yahoo' }, { key: 'reuters', name: 'Reuters' }];
+    feed.articles[0].source = 'Yahoo';
+    feed.articles[1].source = 'Reuters';
+    if (query.getAll('hide').includes('yahoo')) feed.articles.shift();
+    if (query.get('officialOnly') === '1') feed.articles = [];
+    return route.fulfill({ json: feed });
+  });
+  await page.goto('/');
+  await expect(page.locator('article')).toHaveCount(2);
+  await page.locator('#publisher-filter > summary').click();
+  await page.getByRole('checkbox', { name: 'Ascunde Yahoo' }).check();
+  await expect(page.locator('article')).toHaveCount(1);
+  await expect(page.locator('article')).toContainText('Reuters');
+  await page.reload();
+  await expect(page.locator('article')).toHaveCount(1);
+  await page.locator('#publisher-filter > summary').click();
+  await expect(page.getByRole('checkbox', { name: 'Ascunde Yahoo' })).toBeChecked();
+  await page.getByRole('checkbox', { name: 'Doar comunicate oficiale' }).check();
+  await expect(page.getByText('Nicio știre nu corespunde filtrelor de publicație.')).toBeVisible();
+  await page.getByRole('button', { name: 'Resetează filtrele' }).click();
+  await expect(page.locator('article')).toHaveCount(2);
+});
+
+test('calendar shows selected stocks and events for favorite crypto assets', async ({ page }) => {
+  await page.route('**/api/news?*', route => route.fulfill({ json: data('AAPL') }));
+  await page.route('**/api/calendar?*', route => {
+    const tickers = new URL(route.request().url()).searchParams.get('tickers').split(',');
+    const events = tickers.map(ticker => ({ ticker, date: '2027-01-27', type: ticker === 'AAPL' ? 'earnings' : 'network',
+      status: 'estimated', source: ticker === 'AAPL' ? 'Finnhub' : 'Bitcoin Core', url: 'https://example.com/calendar' }));
+    return route.fulfill({ json: { from: '2026-11-25', to: '2027-02-23', events, unavailable: [], stale: false } });
+  });
+  await page.goto('/');
+  await page.locator('#calendar-panel > summary').click();
+  await expect(page.locator('#calendar-events')).toContainText('AAPL · Rezultate financiare');
+  await expect(page.locator('#calendar-events')).toContainText('Dată estimată');
+  await page.locator('#calendar-scope').selectOption('favorites');
+  await expect(page.locator('#calendar-status')).toHaveText('Adaugă un favorit pentru a-i vedea calendarul.');
+  await page.locator('#crypto-assets').getByRole('button', { name: /Bitcoin/ }).click();
+  await page.getByRole('button', { name: 'Favorit', exact: true }).click();
+  await expect(page.locator('#calendar-events')).toContainText('BTC · Actualizare de rețea');
+  await expect(page.getByRole('link', { name: 'Bitcoin Core' })).toHaveAttribute('href', 'https://example.com/calendar');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});

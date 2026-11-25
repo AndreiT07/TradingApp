@@ -5,7 +5,9 @@ import { cryptoAssets } from './crypto.js';
 import { companies } from './companies.js';
 import { Research } from './lib/research.js';
 import { pricePeriods } from './lib/prices.js';
-const assets = { '/': ['index.html', 'text/html; charset=utf-8'], '/app.js': ['app.js', 'text/javascript; charset=utf-8'], '/charts.js': ['charts.js', 'text/javascript; charset=utf-8'], '/watchlist.js': ['watchlist.js', 'text/javascript; charset=utf-8'], '/styles.css': ['styles.css', 'text/css; charset=utf-8'], '/i18n.js': ['i18n.js', 'text/javascript; charset=utf-8'] };
+import { publisherKey } from './lib/news-events.js';
+const assets = { '/': ['index.html', 'text/html; charset=utf-8'], '/app.js': ['app.js', 'text/javascript; charset=utf-8'], '/charts.js': ['charts.js', 'text/javascript; charset=utf-8'], '/watchlist.js': ['watchlist.js', 'text/javascript; charset=utf-8'], '/calendar.js': ['calendar.js', 'text/javascript; charset=utf-8'], '/styles.css': ['styles.css', 'text/css; charset=utf-8'], '/i18n.js': ['i18n.js', 'text/javascript; charset=utf-8'] };
+const subjects = [...companies, ...cryptoAssets];
 function json(res, status, data) {
   res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
   res.end(JSON.stringify(data));
@@ -21,8 +23,15 @@ export function makeServer({ research } = {}) {
     if (url.pathname === '/api/health') return json(res, 200, { status: 'ok' });
     if (url.pathname === '/api/crypto') return json(res, 200, cryptoAssets.map(({ query, keywords, ...asset }) => asset));
     if (url.pathname === '/api/companies') return json(res, 200, companies.map(({ query, keywords, ...company }) => company));
+    if (url.pathname === '/api/calendar') {
+      const tickers = new Set((url.searchParams.get('tickers') || 'AAPL').split(','));
+      const selected = subjects.filter(item => tickers.has(item.ticker));
+      if (selected.length !== tickers.size) return json(res, 400, { error: 'UNKNOWN_COMPANY' });
+      try { return json(res, 200, await service.calendar(selected)); }
+      catch { return json(res, 503, { error: 'CALENDAR_UNAVAILABLE' }); }
+    }
     if (url.pathname === '/api/prices') {
-      const subject = [...companies, ...cryptoAssets].find(item => item.ticker === (url.searchParams.get('ticker') || 'AAPL'));
+      const subject = subjects.find(item => item.ticker === (url.searchParams.get('ticker') || 'AAPL'));
       const period = url.searchParams.get('period') || '1d';
       if (!subject) return json(res, 400, { error: 'UNKNOWN_COMPANY' });
       if (!Object.hasOwn(pricePeriods, period)) return json(res, 400, { error: 'INVALID_PERIOD' });
@@ -33,10 +42,15 @@ export function makeServer({ research } = {}) {
       const lang = url.searchParams.get('lang') || 'ro';
       if (!['ro', 'en'].includes(lang)) return json(res, 400, { error: 'INVALID_LANGUAGE' });
       const ticker = url.searchParams.get('ticker') || 'AAPL';
-      const universe = url.pathname === '/api/news' ? [...companies, ...cryptoAssets] : companies;
+      const universe = url.pathname === '/api/news' ? subjects : companies;
       const company = universe.find(c => c.ticker === ticker);
       if (!company) return json(res, 400, { error: 'UNKNOWN_COMPANY', message: 'Companie necunoscută.' });
-      try { return json(res, 200, await (url.pathname === '/api/news' ? service.news(company, lang) : url.pathname === '/api/investors' ? service.investors(company) : service.analysis(company, lang))); }
+      const hidden = url.searchParams.getAll('hide');
+      if (url.pathname === '/api/news' && (hidden.length > 32 || hidden.some(source => source.length > 100))) {
+        return json(res, 400, { error: 'INVALID_SOURCE_FILTER' });
+      }
+      const filter = { hidden: new Set(hidden.map(publisherKey).filter(Boolean)), officialOnly: url.searchParams.get('officialOnly') === '1' };
+      try { return json(res, 200, await (url.pathname === '/api/news' ? service.news(company, lang, filter) : url.pathname === '/api/investors' ? service.investors(company) : service.analysis(company, lang))); }
       catch { return json(res, 503, { error: 'NEWS_UNAVAILABLE', message: 'Sursa de știri nu poate fi accesată momentan. Încearcă din nou mai târziu.' }); }
     }
     const asset = assets[url.pathname];

@@ -17,6 +17,8 @@ test('HTTP app serves UI, company data, health, rejects unknown tickers and path
     assert.equal((await (await fetch(`${url}/api/health`)).json()).status, 'ok');
     assert.equal((await fetch(`${url}/api/news?ticker=UNKNOWN`)).status, 400);
     assert.equal((await fetch(`${url}/api/news?lang=fr`)).status, 400);
+    assert.equal((await fetch(`${url}/api/news?hide=${'x'.repeat(101)}`)).status, 400);
+    assert.equal((await fetch(`${url}/api/calendar?tickers=AAPL,UNKNOWN`)).status, 400);
     assert.equal((await fetch(`${url}/api/prices?period=constructor`)).status, 400);
     assert.equal((await fetch(`${url}/api/prices?ticker=UNKNOWN`)).status, 400);
     const prices = await (await fetch(`${url}/api/prices?ticker=SOL&period=1w`)).json();

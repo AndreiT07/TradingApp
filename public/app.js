@@ -1,9 +1,22 @@
 import { t, lang, setLanguage, categoryKeys, sectorKeys } from './i18n.js';
 import { initChart, showChart, updateChartEvents } from './charts.js';
 import { addAlerts, alertTopics, changeAlertTopic, readAlerts, toggleFavorite, watchState } from './watchlist.js';
+import { initCalendar, refreshCalendar } from './calendar.js';
 const $ = id => document.getElementById(id);
 const state = { companies: [], ticker: 'AAPL', articles: [], sort: 'important', category: 'all', demo: false, loading: false, error: null, fetchedAt: null, stale: false, setup: null, investors: null, analysis: null };
 let requestController, researchController;
+const publisherStorageKey = 'tradingapp.publishers';
+let knownPublishers = [];
+let publisherPrefs = { hidden: new Set(), officialOnly: false };
+function readPublisherPrefs() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(publisherStorageKey));
+    publisherPrefs = { hidden: new Set(Array.isArray(stored?.hidden)
+      ? stored.hidden.filter(key => typeof key === 'string' && key.length <= 100).slice(0, 32) : []), officialOnly: stored?.officialOnly === true };
+  } catch { /* Keep the current defaults if storage is unavailable. */ }
+}
+readPublisherPrefs();
+const hasPublisherFilter = () => publisherPrefs.hidden.size > 0 || publisherPrefs.officialOnly;
 const dateTime = value => new Intl.DateTimeFormat(lang() === 'ro' ? 'ro-RO' : 'en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
 const number = value => value == null ? '—' : new Intl.NumberFormat(lang(), { maximumFractionDigits: 2 }).format(value);
 function element(tag, className, text) {
@@ -26,7 +39,7 @@ function applyLanguage() {
     else { option.value = option.dataset.original ?? option.value; option.dataset.original = option.value; option.textContent = t(categoryKeys[option.value]); }
   });
   $('today').textContent = new Intl.DateTimeFormat(lang() === 'ro' ? 'ro-RO' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date());
-  renderCompanies(); renderCompany(); renderAlerts();
+  renderCompanies(); renderCompany(); renderAlerts(); renderPublisherFilter(); refreshCalendar();
 }
 const isCrypto = () => state.companies.find(c => c.ticker === state.ticker)?.type === 'crypto';
 function renderCompany() {
@@ -63,7 +76,9 @@ function renderCompanies() {
 }
 function selectCompany(ticker) {
   state.ticker = ticker; state.category = 'all'; $('category').value = 'all';
-  renderCompany(); renderCompanies(); showChart(state.demo ? null : ticker); loadNews(); loadResearch();
+  knownPublishers = [];
+  renderCompany(); renderCompanies(); renderPublisherFilter(); refreshCalendar();
+  showChart(state.demo ? null : ticker); loadNews(); loadResearch();
 }
 function makeDemo() {
   const name = state.companies.find(c => c.ticker === state.ticker)?.name ?? state.ticker;
@@ -80,13 +95,21 @@ function makeDemo() {
 async function loadNews() {
   requestController?.abort(); const controller = requestController = new AbortController();
   state.loading = true; state.error = null; state.articles = []; state.fetchedAt = null; state.stale = false; renderFeed();
-  if (state.demo) { showChart(null); state.articles = makeDemo(); state.loading = false; renderFeed(); return; }
+  $('calendar-panel').hidden = state.demo;
+  $('publisher-filter').hidden = state.demo;
+  if (state.demo) { showChart(null); refreshCalendar(); state.articles = makeDemo(); state.loading = false; renderFeed(); return; }
   try {
-    const response = await fetch(`/api/news?ticker=${encodeURIComponent(state.ticker)}&lang=${lang()}`, { signal: controller.signal });
+    const params = new URLSearchParams({ ticker: state.ticker, lang: lang() });
+    for (const publisher of publisherPrefs.hidden) params.append('hide', publisher);
+    if (publisherPrefs.officialOnly) params.set('officialOnly', '1');
+    const response = await fetch(`/api/news?${params}`, { signal: controller.signal });
     if (!response.ok) throw new Error('news');
     const data = await response.json(); if (controller !== requestController) return;
     state.articles = data.articles; state.fetchedAt = data.fetchedAt; state.stale = data.stale; state.setup = data.setup;
-    addAlerts(state.ticker, state.articles); renderAlerts(false); updateChartEvents(state.ticker, state.articles);
+    knownPublishers = data.availableSources ?? [];
+    renderPublisherFilter();
+    if (!hasPublisherFilter()) addAlerts(state.ticker, state.articles);
+    renderAlerts(false); updateChartEvents(state.ticker, state.articles);
   } catch (error) { if (error.name === 'AbortError') return; state.error = 'news'; }
   finally { if (controller === requestController) { state.loading = false; renderFeed(); } }
 }
@@ -138,8 +161,10 @@ function renderFeed() {
   $('news-status').textContent = `${articles.length} ${t(articles.length === 1 ? 'article' : 'articles')}${state.demo ? ' · DEMO' : ' · ' + t('lastDay')}`;
   if (!articles.length) {
     const noRelevantNews = !state.articles.length;
+    const emptyDescription = noRelevantNews && hasPublisherFilter() && !state.demo ? 'emptyPublishers'
+      : noRelevantNews ? 'emptyCompany' : 'emptyCategory';
     $('feed').append(emptyState(t(noRelevantNews ? 'emptyCompanyTitle' : 'empty'),
-      t(noRelevantNews ? 'emptyCompany' : 'emptyCategory')));
+      t(emptyDescription)));
     return;
   }
   const grid = element('div', 'news-grid');
@@ -180,6 +205,39 @@ function link(url, text = t('source')) {
   if (!url || !/^https?:\/\//.test(url)) return element('span', '', '—');
   const anchor = element('a', 'source-link', text); anchor.href = url; anchor.target = '_blank'; anchor.rel = 'noopener noreferrer'; return anchor;
 }
+function renderPublisherFilter() {
+  const count = publisherPrefs.hidden.size + Number(publisherPrefs.officialOnly);
+  $('publisher-count').hidden = !count;
+  $('publisher-count').textContent = count;
+  $('hide-yahoo').checked = publisherPrefs.hidden.has('yahoo');
+  $('only-official').checked = publisherPrefs.officialOnly;
+  $('reset-publishers').disabled = !count;
+  const options = $('publisher-options');
+  const active = document.activeElement?.dataset.publisher;
+  options.replaceChildren();
+  const publishers = knownPublishers.filter(source => source.key !== 'yahoo');
+  $('other-publishers').hidden = !publishers.length;
+  for (const { key, name } of publishers) {
+    const label = element('label'), box = element('input');
+    box.type = 'checkbox'; box.dataset.publisher = key; box.checked = publisherPrefs.hidden.has(key);
+    box.addEventListener('change', () => changePublisher(key, box.checked));
+    label.append(box, element('span', '', name)); options.append(label);
+    if (key === active) box.focus();
+  }
+}
+
+function applyPublisherPrefs() {
+  try {
+    localStorage.setItem(publisherStorageKey, JSON.stringify({ hidden: [...publisherPrefs.hidden], officialOnly: publisherPrefs.officialOnly }));
+  } catch { /* Session filters still work. */ }
+  renderPublisherFilter(); loadNews();
+}
+
+function changePublisher(key, hide) {
+  if (!hide) publisherPrefs.hidden.delete(key);
+  else if (publisherPrefs.hidden.size < 32) publisherPrefs.hidden.add(key);
+  applyPublisherPrefs();
+}
 function renderAlerts(renderOptions = true) {
   const watch = watchState();
   if (renderOptions) {
@@ -207,7 +265,8 @@ async function refreshFavoriteAlerts() {
   if (state.demo || document.hidden) return;
   const watch = watchState();
   if (!Object.keys(watch.topics).length) return;
-  const favorites = state.companies.filter(company => company.ticker !== state.ticker && Object.hasOwn(watch.favorites, company.ticker));
+  const favorites = state.companies.filter(company => (company.ticker !== state.ticker || hasPublisherFilter())
+    && Object.hasOwn(watch.favorites, company.ticker));
   await Promise.allSettled(favorites.map(async ({ ticker }) => {
     const response = await fetch(`/api/news?ticker=${encodeURIComponent(ticker)}&lang=${lang()}`, { signal: AbortSignal.timeout(30000) });
     if (response.ok) addAlerts(ticker, (await response.json()).articles);
@@ -297,14 +356,18 @@ function renderResearch() {
 }
 $('company-search').addEventListener('input', renderCompanies);
 $('category').addEventListener('change', event => { state.category = event.target.value; renderFeed(); });
-$('refresh').addEventListener('click', () => { if (!state.demo) showChart(state.ticker, state.articles); loadNews(); loadResearch(); });
-$('exit-demo').addEventListener('click', () => { state.demo = false; showChart(state.ticker); loadNews(); loadResearch(); });
-$('toggle-favorite').addEventListener('click', () => { toggleFavorite(state.ticker); renderCompany(); renderCompanies(); });
+$('refresh').addEventListener('click', () => { if (!state.demo) showChart(state.ticker, state.articles); loadNews(); loadResearch(); refreshCalendar(); refreshFavoriteAlerts(); });
+$('exit-demo').addEventListener('click', () => { state.demo = false; showChart(state.ticker); loadNews(); loadResearch(); refreshCalendar(); });
+$('toggle-favorite').addEventListener('click', () => { toggleFavorite(state.ticker); renderCompany(); renderCompanies(); refreshCalendar(); });
+$('hide-yahoo').addEventListener('change', event => changePublisher('yahoo', event.target.checked));
+$('only-official').addEventListener('change', event => { publisherPrefs.officialOnly = event.target.checked; applyPublisherPrefs(); });
+$('reset-publishers').addEventListener('click', () => { publisherPrefs = { hidden: new Set(), officialOnly: false }; applyPublisherPrefs(); });
 $('alerts-panel').addEventListener('toggle', event => {
   if (event.target.open) { readAlerts(); renderAlerts(false); }
 });
 window.addEventListener('storage', event => {
-  if (event.key === 'tradingapp.watchlist') { renderCompanies(); renderCompany(); renderAlerts(); }
+  if (event.key === 'tradingapp.watchlist') { renderCompanies(); renderCompany(); renderAlerts(); refreshCalendar(); }
+  if (event.key === publisherStorageKey) { readPublisherPrefs(); renderPublisherFilter(); loadNews(); }
 });
 $('language').addEventListener('change', event => {
   setLanguage(event.target.value); applyLanguage();
@@ -319,6 +382,11 @@ for (const [id, sort] of [['sort-important', 'important'], ['sort-recent', 'rece
 }
 document.addEventListener('keydown', event => {
   if (event.key === '/' && !['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement.tagName)) { event.preventDefault(); $('company-search').focus(); }
+});
+initCalendar(scope => {
+  if (scope === 'selected') return [state.ticker];
+  const favorites = watchState().favorites;
+  return state.companies.filter(company => scope === 'all' || Object.hasOwn(favorites, company.ticker)).map(company => company.ticker);
 });
 initChart(); applyLanguage(); renderResearch();
 try {
@@ -336,6 +404,6 @@ setInterval(() => {
 
 setInterval(() => {
   if (state.companies.length && !document.hidden && !state.demo && !state.loading) {
-    showChart(state.ticker, state.articles); loadNews(); refreshFavoriteAlerts();
+    showChart(state.ticker, state.articles); loadNews(); refreshFavoriteAlerts(); refreshCalendar();
   }
 }, 3_600_000);

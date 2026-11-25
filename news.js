@@ -64,13 +64,16 @@ export function rankNews(title, publishedAt, now) {
   const { category, weight } = classify(title);
   return { category, score: weight + 3 / (1 + Math.max(0, now - publishedAt) / 43_200_000) };
 }
-export function parseFeed(xml, company, now = Date.now(), { sourceName, descriptions = false } = {}) {
+export function rssItems(xml) {
   if (xml.length > 2_000_000 || /<!DOCTYPE|<!ENTITY/i.test(xml)) throw new Error('Invalid feed');
   const parsed = parser.parse(xml);
   if (!parsed.rss?.channel) throw new Error('Invalid RSS');
   const items = parsed.rss.channel.item ?? [];
+  return Array.isArray(items) ? items : [items];
+}
+export function parseFeed(xml, company, now = Date.now(), { sourceName, descriptions = false } = {}) {
   const seen = new Set();
-  return (Array.isArray(items) ? items : [items]).flatMap(item => {
+  return rssItems(xml).flatMap(item => {
     const rawTitle = typeof item.title === 'string' ? item.title : '';
     const source = typeof item.source === 'string' ? item.source : item.source?.['#text'];
     const title = source && rawTitle.endsWith(` - ${source}`) ? rawTitle.slice(0, -source.length - 3) : rawTitle;

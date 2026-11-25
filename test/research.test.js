@@ -104,6 +104,29 @@ test('Nvidia releases provide source descriptions alongside cached Finnhub news'
     await service.stop();
   }
 });
+test('publisher filtering regroups remaining links and supplements a Yahoo-only feed with RSS', async () => {
+  const store = new Store(':memory:');
+  const now = new Date();
+  store.put('news:AAPL', { fetchedAt: now.toISOString(), articles: [
+    { id: 'one', title: 'Apple earnings report', url: 'https://finance.yahoo.com/news/apple', source: 'Yahoo Finance', provider: 'finnhub', publishedAt: now.toISOString() },
+    { id: 'two', title: 'Apple earnings report', url: 'https://example.com/apple', source: 'Reuters', provider: 'finnhub', publishedAt: now.toISOString() },
+  ] });
+  let rss = 0;
+  const service = new Research({ store, env: marketEnv, call: async url => {
+    assert.equal(url.hostname, 'news.google.com');
+    rss++;
+    return { text: `<rss><channel><item><title>Apple iPhone launch</title><link>https://example.com/iphone</link><pubDate>${now.toUTCString()}</pubDate><source>Associated Press</source></item></channel></rss>` };
+  } });
+  try {
+    const result = await service.news(companies[0], 'ro', { hidden: new Set(['yahoo']), officialOnly: false });
+    assert.deepEqual(result.articles.map(article => article.source), ['Reuters', 'Associated Press']);
+    assert.ok(result.articles.every(article => article.coverage.length === 0));
+    assert.ok(result.availableSources.some(item => item.key === 'yahoo'));
+    const official = await service.news(companies[0], 'ro', { hidden: new Set(), officialOnly: true });
+    assert.deepEqual(official.articles, []);
+    assert.equal(rss, 1);
+  } finally { await service.stop(); }
+});
 test('financial evidence requires recent quotes, reporting dates and enough numeric metrics', () => {
   const now=Date.now(), quote={c:100,t:now/1000}, period=new Date(now-40*86400000).toISOString().slice(0,10);
   const financials={metric:{peTTM:20,revenueGrowthTTMYoy:5,epsGrowthTTMYoy:3},series:{quarterly:{eps:[{period}]}}};

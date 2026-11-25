@@ -39,6 +39,23 @@
           <fieldset id="alert-topics"><legend data-i18n="alertTopics">Tipuri de evenimente</legend><div id="alert-options"></div></fieldset>
           <ul id="alert-list" aria-live="polite"></ul>
         </details>
+        <details id="calendar-panel" class="alerts-panel calendar-panel">
+          <summary data-i18n="calendar">Calendar</summary>
+          <label class="calendar-scope"><span data-i18n="calendarFor">Evenimente pentru</span>
+            <select id="calendar-scope">
+              <option value="selected" data-i18n="calendarSelected">Simbolul selectat</option>
+              <option value="favorites" data-i18n="favorites">Favorite</option>
+              <option value="all" data-i18n="calendarAll">Toate acțiunile și crypto</option>
+            </select>
+          </label>
+          <p id="calendar-status" class="panel-note" aria-live="polite"></p>
+          <p id="calendar-stale" class="panel-note" data-i18n="calendarStale" hidden></p>
+          <ol id="calendar-events"></ol>
+          <details id="calendar-gaps" hidden>
+            <summary data-i18n="calendarGaps">Date indisponibile</summary>
+            <ul id="calendar-coverage"></ul>
+          </details>
+        </details>
         <section id="chart-panel" class="chart-panel" aria-labelledby="chart-title" hidden>
           <div class="chart-header">
             <div><h3 id="chart-title" data-i18n="priceChart">Grafic de preț</h3><p id="chart-status" class="panel-note" aria-live="polite"></p></div>
@@ -60,6 +77,15 @@
         </section>
         <div class="news-toolbar"><div class="tabs" aria-label="Ordonare știri"><button class="tab active" id="sort-important" type="button" aria-pressed="true" data-i18n="important">Cele mai importante</button><button class="tab" id="sort-recent" type="button" aria-pressed="false" data-i18n="recent">Cele mai recente</button></div><span id="news-status" class="news-status">Se încarcă…</span></div>
         <div class="filter-row"><label for="category" data-i18n="subject">Subiect</label><select id="category"><option value="all">Toate subiectele</option><option>Rezultate financiare</option><option>Reglementări</option><option>Tranzacții &amp; strategie</option><option>Produse &amp; inovație</option><option>Companie &amp; piață</option></select><span data-i18n="priority" class="ranking-info" title="Prioritate după cuvinte-cheie din titlu și recență; nu este o recomandare de investiții.">ⓘ Prioritate după subiect și recență</span></div>
+        <details id="publisher-filter" class="alerts-panel">
+          <summary><span data-i18n="publishers">Filtru publicații</span> <span id="publisher-count" class="alert-count" hidden></span></summary>
+          <div class="publisher-options">
+            <label><input id="hide-yahoo" type="checkbox"> <span data-i18n="hideYahoo">Ascunde Yahoo</span></label>
+            <label><input id="only-official" type="checkbox"> <span data-i18n="officialOnly">Doar comunicate oficiale</span></label>
+            <button id="reset-publishers" type="button" data-i18n="clearPublishers">Resetează filtrele</button>
+          </div>
+          <fieldset id="other-publishers" hidden><legend data-i18n="hidePublishers">Ascunde alte publicații</legend><div id="publisher-options"></div></fieldset>
+        </details>
         <div id="demo-notice" class="demo-notice" hidden><span data-i18n="demoNotice"></span><button id="exit-demo" type="button" data-i18n="exitDemo">Revino la știri live</button></div>
         <details id="setup-notice" class="setup-notice" hidden><summary data-i18n="setupHelp"></summary><p id="setup-explanation"></p></details>
         <div id="feed" aria-live="polite" aria-busy="true"></div>

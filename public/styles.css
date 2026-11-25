@@ -62,3 +62,31 @@
   .company-actions { justify-content: flex-start; }
   #price-canvas, #price-widget { height: 230px; }
 }
+
+.publisher-options, #publisher-options, .calendar-scope {
+  display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-top: 10px; font-size: 12px;
+}
+.publisher-options label, #publisher-options label {
+  display: inline-flex; gap: 6px; align-items: center; cursor: pointer; overflow-wrap: anywhere;
+}
+.publisher-options input, #publisher-options input { accent-color: var(--accent); }
+#reset-publishers {
+  padding: 5px 8px; border: 1px solid #374337; border-radius: 6px;
+  background: transparent; color: var(--accent); font: inherit; cursor: pointer;
+}
+#reset-publishers:disabled { opacity: .55; cursor: default; }
+#other-publishers { border: 0; margin: 12px 0 0; padding: 0; min-width: 0; font-size: 12px; }
+#publisher-options { max-height: 150px; overflow: auto; margin-top: 4px; }
+.calendar-scope select {
+  max-width: 100%; padding: 6px; border: 1px solid #374337; border-radius: 6px; background: #1c241b; color: inherit;
+}
+#calendar-events { display: grid; gap: 6px; padding: 0; margin: 10px 0; max-height: 340px; overflow: auto; list-style: none; }
+.calendar-item {
+  display: grid; grid-template-columns: minmax(80px, 120px) minmax(0, 1fr); gap: 10px;
+  padding: 8px 0; border-bottom: 1px solid #30382d; overflow-wrap: anywhere;
+}
+.calendar-item time { color: var(--accent); font-size: 12px; }
+.calendar-item p { margin: 3px 0; }
+.calendar-item .source-link { display: block; margin-top: 2px; }
+#calendar-gaps { margin-top: 8px; font-size: 12px; color: var(--muted); }
+#calendar-coverage { padding-left: 20px; }

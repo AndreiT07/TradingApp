@@ -28,6 +28,34 @@ Object.assign(messages.en, {
   widgetHistory: 'TradingView history', relatedSources: 'Other sources',
   source_official: 'Official release', source_opinion: 'Opinion', source_news: 'News',
 });
+Object.assign(messages.ro, {
+  publishers: 'Filtru publicații', hideYahoo: 'Ascunde Yahoo', officialOnly: 'Doar comunicate oficiale',
+  clearPublishers: 'Resetează filtrele', hidePublishers: 'Ascunde alte publicații',
+  emptyPublishers: 'Nicio știre nu corespunde filtrelor de publicație.',
+  calendar: 'Calendar', calendarFor: 'Evenimente pentru', calendarSelected: 'Simbolul selectat',
+  calendarAll: 'Toate acțiunile și crypto', calendarGaps: 'Date indisponibile',
+  calendarStale: 'Unele date provin din ultima preluare reușită.',
+  calendarNoFavorites: 'Adaugă un favorit pentru a-i vedea calendarul.',
+  calendarEmpty: 'Niciun eveniment cu dată disponibilă în următoarele 90 de zile.',
+  calendarUnavailable: 'Calendarul este temporar indisponibil.',
+  calendarEstimated: 'Dată estimată', calendarAnnounced: 'Dată anunțată',
+  calendar_earnings: 'Rezultate financiare', calendar_dividend: 'Plată dividend',
+  calendar_exDividend: 'Ex-dividend', calendar_network: 'Actualizare de rețea', calendar_amc: 'După închidere', calendar_bmo: 'Înainte de deschidere',
+});
+Object.assign(messages.en, {
+  publishers: 'Publisher filter', hideYahoo: 'Hide Yahoo', officialOnly: 'Official releases only',
+  clearPublishers: 'Reset filters', hidePublishers: 'Hide other publishers',
+  emptyPublishers: 'No news matches the publisher filters.',
+  calendar: 'Calendar', calendarFor: 'Events for', calendarSelected: 'Selected symbol',
+  calendarAll: 'All stocks and crypto', calendarGaps: 'Unavailable data',
+  calendarStale: 'Some dates are from the last successful fetch.',
+  calendarNoFavorites: 'Add a favorite to see its calendar.',
+  calendarEmpty: 'No events with a date listed in the next 90 days.',
+  calendarUnavailable: 'The calendar is temporarily unavailable.',
+  calendarEstimated: 'Estimated date', calendarAnnounced: 'Announced date',
+  calendar_earnings: 'Earnings', calendar_dividend: 'Dividend payment',
+  calendar_exDividend: 'Ex-dividend', calendar_network: 'Network update', calendar_amc: 'After close', calendar_bmo: 'Before open',
+});
 export const categoryKeys = { 'Rezultate financiare':'earnings', 'Reglementări':'regulation', 'Tranzacții & strategie':'strategy', 'Produse & inovație':'products', 'Companie & piață':'market' };
 export const sectorKeys = { 'Tehnologie':'tech', 'Semiconductori':'semis', 'Consum':'consumer', 'Auto':'auto', 'Financiar':'finance', 'Sănătate':'health', 'Crypto':'crypto' };
 let language = 'ro';
